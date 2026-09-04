@@ -74,3 +74,62 @@ class ApprovalStatus(str, Enum):
     pending = "pending"
 
 
+class Node(SQLModel, table=True):
+    node_id: Optional[int] = Field(default=None, primary_key=True)
+    node_type: NodeType
+    node_name: str
+    parent_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
+    modality_tag: Optional[str] = None
+    degree_type: Optional[str] = None  # e.g. "Bachelor of Arts" — set on program nodes only
+    sort_order: int = Field(default=0)
+    status: ApprovalStatus = Field(default=ApprovalStatus.active)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+
+
+class Course(SQLModel, table=True):
+    course_id: Optional[int] = Field(default=None, primary_key=True)
+    course_title: str
+    credit_hours: int = 3
+    owning_node_id: int = Field(foreign_key="node.node_id")  # program node
+    node_id: int = Field(foreign_key="node.node_id")  # this course's own tree node
+
+
+class Outcome(SQLModel, table=True):
+    outcome_id: Optional[int] = Field(default=None, primary_key=True)
+    outcome_level: OutcomeLevel
+    outcome_code: str  # e.g. "PLO2", "MLO1.1"
+    outcome_text: str
+    hlc_criterion_tag: Optional[str] = None
+    parent_outcome_id: Optional[int] = Field(default=None, foreign_key="outcome.outcome_id")
+    owning_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
+
+
+class Activity(SQLModel, table=True):
+    activity_id: Optional[int] = Field(default=None, primary_key=True)
+    course_id: int = Field(foreign_key="course.course_id")
+    module_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
+    activity_type: ActivityType
+    activity_name: str
+
+
+class Mapping(SQLModel, table=True):
+    mapping_id: Optional[int] = Field(default=None, primary_key=True)
+    course_id: int = Field(foreign_key="course.course_id")
+    target_outcome_id: int = Field(foreign_key="outcome.outcome_id")
+    activity_id: Optional[int] = Field(default=None, foreign_key="activity.activity_id")
+    module_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
+    mastery_level: MasteryLevel
+    assessment_method: Optional[str] = None
+
+
+class User(SQLModel, table=True):
+    user_id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    first_name: str = ""
+    last_name: str = ""
+    password_hash: str  # sha256 for hardcoded test users; real hashing when real auth lands
+    role: Role
+    # primary scope; None for users whose access comes only from UserScope grants
+    scope_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
+
+
