@@ -59,3 +59,74 @@ def login(body: LoginRequest, session: Session = Depends(get_session)):
     }
 
 
+def _resolve_scope(session: Session, user: User, scope: Optional[int]) -> int:
+    """Requested scope must sit within one of the user's grants; defaults to the primary scope."""
+    if scope is None:
+        base = default_scope(session, user)
+        if base is None:
+            raise HTTPException(status_code=403, detail="No access granted yet")
+        return base
+    if not session.get(Node, scope):
+        raise HTTPException(status_code=404, detail="Scope node not found")
+    if not can_view(session, user, scope):
+        raise HTTPException(status_code=403, detail="Scope outside your permission")
+    return scope
+
+
+@app.get("/curriculum")
+def curriculum(
+    scope: Optional[int] = None,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    pending_ok = _pending_visible_ids(session, user)
+    if scope is not None:
+        root = _resolve_scope(session, user, scope)
+        tree = build_tree(session, root_node_id=root,
+                          grants=None if is_admin(user) else scope_grants(session, user),
+                          viewer_user_id=user.user_id, viewer_pending_ok=pending_ok,
+                          is_admin_viewer=is_admin(user))
+    elif is_admin(user):
+        tree = build_tree(session, viewer_user_id=user.user_id, is_admin_viewer=True)  # full tree, uniform edit access
+    else:
+        grants = scope_grants(session, user)
+        if not grants:
+            raise HTTPException(status_code=403, detail="No access granted yet")
+        # institution-rooted tree pruned to granted subtrees + their ancestor path
+        tree = build_tree(session, grants=grants, viewer_user_id=user.user_id,
+                          viewer_pending_ok=pending_ok)
+    if tree is None:
+        raise HTTPException(status_code=404, detail="No curriculum data")
+    return {
+        "role": user.role.value,
+        "username": user.username,
+        "first_name": user.first_name,
+        "can_edit": user.role.value in ("admin", "editor"),
+        "tree": tree,
+    }
+
+
+def _report_scope(session: Session, user: User, scope: Optional[int]) -> int:
+    root = _resolve_scope(session, user, scope)
+    # reports aggregate over a department subtree; any node works, courses filter by descendance
+    return root
+
+
+@app.get("/reports/coverage")
+def report_coverage(scope: Optional[int] = None, user: User = Depends(get_current_user),
+                    session: Session = Depends(get_session)):
+    return reports.coverage_matrix(session, _report_scope(session, user, scope))
+
+
+@app.get("/reports/rigidity")
+def report_rigidity(scope: Optional[int] = None, user: User = Depends(get_current_user),
+                    session: Session = Depends(get_session)):
+    return reports.rigidity_audit(session, _report_scope(session, user, scope))
+
+
+@app.get("/reports/orphans")
+def report_orphans(scope: Optional[int] = None, user: User = Depends(get_current_user),
+                   session: Session = Depends(get_session)):
+    return reports.orphan_report(session, _report_scope(session, user, scope))
+
+
