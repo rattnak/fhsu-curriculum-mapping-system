@@ -431,3 +431,130 @@ FLAGSHIP_COURSES = {
 }
 
 
+def seed() -> None:
+    init_db()
+    with Session(engine) as s:
+        if s.exec(select(Node)).first():
+            print("Database already seeded; skipping.")
+            return
+
+        def node(**kw) -> Node:
+            n = Node(**kw)
+            s.add(n)
+            s.flush()
+            return n
+
+        def outcome(**kw) -> Outcome:
+            o = Outcome(**kw)
+            s.add(o)
+            s.flush()
+            return o
+
+        fhsu = node(node_type=NodeType.institution, node_name="Fort Hays State University")
+        grouping = node(node_type=NodeType.college_dept_grouping,
+                        node_name="Academic Colleges & Departments", parent_node_id=fhsu.node_id)
+
+        ilo1 = outcome(outcome_level=OutcomeLevel.institutional, outcome_code="ILO1",
+                       outcome_text="Graduates communicate effectively in professional contexts.",
+                       hlc_criterion_tag="3.B", owning_node_id=fhsu.node_id)
+
+        def add_course(program_node, code, title, credits, modules):
+            """modules: [(module_name, [(clo, [(atype, aname, mastery, method)])])]"""
+            cnode = node(node_type=NodeType.course, node_name=code, parent_node_id=program_node.node_id)
+            c = Course(course_title=title, credit_hours=credits,
+                       owning_node_id=program_node.node_id, node_id=cnode.node_id)
+            s.add(c)
+            s.flush()
+            for mod_name, clos in modules:
+                mnode = node(node_type=NodeType.module, node_name=mod_name, parent_node_id=cnode.node_id)
+                for clo, acts in clos:
+                    for atype, aname, mastery, method in acts:
+                        act = Activity(course_id=c.course_id, module_node_id=mnode.node_id,
+                                       activity_type=atype, activity_name=aname)
+                        s.add(act)
+                        s.flush()
+                        s.add(Mapping(course_id=c.course_id, target_outcome_id=clo.outcome_id,
+                                      activity_id=act.activity_id, module_node_id=mnode.node_id,
+                                      mastery_level=mastery, assessment_method=method))
+            return cnode, c
+
+        college_nodes = {}
+        abs_dept = None
+        abs_college = None
+        abs_program = None
+        hhp_plos = None  # captured below for real closing-the-loop action-item demo data
+
+        for college_name, departments in FHSU_STRUCTURE.items():
+            college = node(node_type=NodeType.college, node_name=college_name,
+                           parent_node_id=grouping.node_id)
+            college_nodes[college_name] = college
+            for dept_name, programs in departments.items():
+                dept = node(node_type=NodeType.department, node_name=dept_name,
+                            parent_node_id=college.node_id)
+
+                flagship = FLAGSHIP_COURSES[dept_name]
+                if flagship is None:  # Applied Business Studies: rich hand-written seed below
+                    # create every real catalog program node now (structure only); the rich
+                    # section further down looks up "Marketing (B.B.A.)" as its flagship
+                    for prog_name, degree_type in programs:
+                        prog = node(node_type=NodeType.program, node_name=prog_name,
+                                   parent_node_id=dept.node_id, degree_type=degree_type)
+                        if prog_name == "Marketing (B.B.A.)":
+                            abs_program = prog
+                    abs_dept, abs_college = dept, college
+                    continue
+
+                flagship_name, prefix, subjects = flagship
+
+                # generated program outcomes, owned by the flagship program once it's created
+                plo_specs = [
+                    (f"{prefix}-PLO{i+1}",
+                     f"{dept_name.replace('Department of ', '').replace('School of ', '')} program outcome {i+1}.",
+                     ["3.A", "3.B", "4.B"][i % 3])
+                    for i in range(3)
+                ]
+
+                flagship_program = None
+                plos = []
+                for prog_name, degree_type in programs:
+                    prog = node(node_type=NodeType.program, node_name=prog_name,
+                               parent_node_id=dept.node_id, degree_type=degree_type)
+                    if prog_name == flagship_name:
+                        flagship_program = prog
+                        plos = [
+                            outcome(outcome_level=OutcomeLevel.program, outcome_code=code,
+                                   outcome_text=text, hlc_criterion_tag=tag,
+                                   parent_outcome_id=ilo1.outcome_id if i == 0 else None,
+                                   owning_node_id=prog.node_id)
+                            for i, (code, text, tag) in enumerate(plo_specs)
+                        ]
+                        if dept_name == "Department of Health and Human Performance":
+                            hhp_plos = plos
+
+                # generated courses: number series 101..612, mastery scaffolds upward
+                for idx, subject in enumerate(subjects):
+                    number = 101 + (idx * 47) % 500
+                    level = number // 100
+                    mastery = I if level <= 2 else (R if level <= 4 else M)
+                    code = f"{prefix} {number}"
+                    clo = outcome(outcome_level=OutcomeLevel.course,
+                                  outcome_code=f"{prefix}{number}-CLO1",
+                                  outcome_text=f"Apply core concepts of {subject.lower()}.",
+                                  parent_outcome_id=plos[idx % 3].outcome_id,
+                                  owning_node_id=None)
+                    add_course(flagship_program, code, subject, 3, [
+                        (f"Module 1: {subject} Foundations", [
+                            (clo, [
+                                (LA, f"Lecture: {subject} Overview", mastery, None),
+                                (AS, f"Quiz: {subject} Fundamentals", mastery, "Objective quiz"),
+                            ]),
+                        ]),
+                        (f"Module 2: Applied {subject}", [
+                            (clo, [
+                                (LA, f"Activity: {subject} Practice", mastery, None),
+                                (AS, f"Project: Applied {subject}", mastery, "Project"),
+                            ]),
+                        ]),
+                    ])
+                s.commit()
+
