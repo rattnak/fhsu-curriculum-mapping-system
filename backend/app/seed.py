@@ -558,3 +558,86 @@ def seed() -> None:
                     ])
                 s.commit()
 
+        # ---- Applied Business Studies: rich demo seed ----
+        dept = abs_dept
+        prog = abs_program  # "Marketing (B.B.A.)" node, created above alongside its sibling programs
+        plo1 = outcome(outcome_level=OutcomeLevel.program, outcome_code="PLO1",
+                       outcome_text="Apply core management principles to organizational problems.",
+                       hlc_criterion_tag="3.A", parent_outcome_id=ilo1.outcome_id, owning_node_id=prog.node_id)
+        plo2 = outcome(outcome_level=OutcomeLevel.program, outcome_code="PLO2",
+                       outcome_text="Develop and evaluate marketing strategies using market data.",
+                       hlc_criterion_tag="3.A", owning_node_id=prog.node_id)
+        plo3 = outcome(outcome_level=OutcomeLevel.program, outcome_code="PLO3",
+                       outcome_text="Demonstrate professional business communication skills.",
+                       hlc_criterion_tag="3.B", parent_outcome_id=ilo1.outcome_id, owning_node_id=prog.node_id)
+        outcome(outcome_level=OutcomeLevel.program, outcome_code="PLO4",
+                outcome_text="Evaluate ethical and legal implications of business decisions.",
+                hlc_criterion_tag="3.D", owning_node_id=prog.node_id)  # deliberately unmapped -> dead-end
+
+        def clo(code, text, parent):
+            return outcome(outcome_level=OutcomeLevel.course, outcome_code=code, outcome_text=text,
+                           parent_outcome_id=parent.outcome_id if parent else None,
+                           owning_node_id=prog.node_id)
+
+        add_course(prog, "MGT 301", "Management Principles", 3, [
+            ("Module 1: Foundations of Management", [
+                (clo("MGT301-CLO1", "Describe the four functions of management.", plo1), [
+                    (LA, "Lecture: Evolution of Management Thought", I, None),
+                    (AS, "Quiz 1: Management Functions", I, "Objective quiz"),
+                ]),
+            ]),
+            ("Module 2: Planning & Strategy", [
+                (clo("MGT301-CLO2", "Construct a basic strategic plan for a small organization.", plo1), [
+                    (LA, "Case Study: Regional Business Planning", I, None),
+                    (AS, "Strategic Plan Draft", R, "Written assignment"),
+                ]),
+            ]),
+            ("Module 3: Leading Teams", [
+                (clo("MGT301-CLO3", "Explain motivation and leadership theories in team settings.", plo3), [
+                    (LA, "Discussion: Leadership Styles", I, None),
+                    (AS, "Team Leadership Reflection Paper", I, "Reflection paper"),
+                ]),
+            ]),
+        ])
+
+        add_course(prog, "MKT 301", "Marketing Principles", 3, [
+            ("Module 1: Marketing Environment", [
+                (clo("MKT301-CLO1", "Identify components of the marketing environment.", plo2), [
+                    (LA, "Lecture: The Marketing Mix", I, None),
+                    (AS, "Quiz 1: Marketing Environment", I, "Objective quiz"),
+                ]),
+            ]),
+            ("Module 2: Consumer Behavior", [
+                (clo("MKT301-CLO2", "Analyze consumer decision-making processes.", plo2), [
+                    (LA, "Activity: Buyer Persona Workshop", I, None),
+                    (AS, "Consumer Behavior Case Analysis", R, "Case analysis"),
+                ]),
+            ]),
+        ])
+
+        add_course(prog, "MGT 400", "Human Resource Management", 3, [
+            ("Module 1: HR Fundamentals", [
+                (clo("MGT400-CLO1", "Apply employment law fundamentals to HR scenarios.", plo1), [
+                    (LA, "Lecture: Employment Law Overview", R, None),
+                    (AS, "HR Scenario Analysis", R, "Scenario analysis"),
+                ]),
+                # deliberate ORPHAN: no parent program outcome
+                (clo("MGT400-CLO2", "Design a structured interview protocol.", None), [
+                    (LA, "Workshop: Interview Question Design", I, None),
+                    (AS, "Interview Protocol Project", R, "Project"),
+                ]),
+            ]),
+        ])
+
+        add_course(prog, "MGT 601", "Strategic Management (Capstone)", 3, [
+            ("Module 1: Integrative Strategy", [
+                (clo("MGT601-CLO1", "Synthesize functional business knowledge into an enterprise strategy.", plo1), [
+                    (LA, "Simulation: Capstone Business Simulation", M, None),
+                    (AS, "Capstone Strategic Plan & Presentation", M, "Capstone project"),
+                ]),
+                (clo("MGT601-CLO2", "Present strategic recommendations to stakeholders.", plo3), [
+                    (AS, "Executive Presentation", M, "Oral presentation"),
+                ]),
+            ]),
+        ])
+
