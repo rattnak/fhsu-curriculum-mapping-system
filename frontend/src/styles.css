@@ -1,0 +1,118 @@
+/* FHSU brand palette (2026 FHSU Brand Standards v2, "Color Palette" p.31-33):
+   primary   — Tiger Gold #FDB913, Tiger Black #000000
+   highlight — Seaway #1FBBB0, Bluelight #064851, Frontier #768A58,
+               Kansas Sunrise #F09585, Downtown #BE5E28, Bison #4B180E,
+               Limestone #FFF6DC
+   Highlight colors are accent-only per FHSU's 80/20 rule (>=80% of any
+   composition stays black/gold); semantic roles below map onto them,
+   substituting a darkened Frontier (#5E6E46, WCAG 5.5:1 on white) for
+   light-mode --ok where the brand hex alone reads under 4.5:1 for text. */
+:root {
+  --bg: #0a0e16;            /* canvas: darkest layer */
+  --bg-raised: #141a27;     /* navbar / panels: one step up */
+  --bg-drawer: #171e2d;     /* details drawer: its own layer */
+  --bg-card: #1d2536;       /* cards: brightest surface */
+  --line: #283351;
+  --line-strong: #3d4c74;
+  --ink: #eef2fa;
+  --muted: #97a3bd;
+  --accent: #FDB913;        /* Tiger Gold — 11.15:1 on --bg */
+  --accent-ink: #1a1400;
+  --grid-dot: #1c2436;
+  --ok: #1FBBB0;             /* Seaway — 8.09:1 on --bg */
+  --warn: #F09585;           /* Kansas Sunrise — 8.59:1 on --bg */
+  --bad: #ec6b77;            /* off-palette: FHSU has no accessible dark-mode red */
+  --shadow-nav: 0 1px 0 var(--line), 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-drawer: -16px 0 40px rgba(0, 0, 0, 0.45);
+
+  --c-institution: #FDB913;
+  --c-grouping: #6b7690;
+  --c-college: #F09585;
+  --c-department: #1FBBB0;
+  --c-program: #4fd0d8;
+  --c-course: #a78bfa;
+  --c-module: #64748b;
+  --c-objective: #c084fc;
+  --c-activity: #4fd08c;
+  --c-assessment: #F09585;
+}
+
+:root[data-theme="light"] {
+  --bg: #eef1f7;
+  --bg-raised: #ffffff;
+  --bg-drawer: #fafbfe;
+  --bg-card: #ffffff;
+  --shadow-nav: 0 1px 0 var(--line), 0 4px 14px rgba(28, 36, 52, 0.08);
+  --shadow-drawer: -16px 0 40px rgba(28, 36, 52, 0.14);
+  --line: #d9dfeb;
+  --line-strong: #b9c3d6;
+  --ink: #1c2434;
+  --muted: #5d6a81;
+  --accent: #064851;        /* Bluelight — 10.23:1 on white; Tiger Gold text fails here (1.7:1) */
+  --accent-ink: #ffffff;
+  --grid-dot: #dde3ee;
+  --ok: #5E6E46;             /* Frontier, darkened for text contrast — 5.5:1 on white */
+  --warn: #BE5E28;           /* Downtown — 4.36:1 on white */
+  --bad: #4B180E;            /* Bison — 14.62:1 on white */
+
+  --c-institution: #064851;
+  --c-grouping: #7a86a0;
+  --c-college: #BE5E28;
+  --c-department: #5E6E46;
+  --c-program: #1a7a80;
+  --c-course: #7c53d6;
+  --c-module: #64748b;
+  --c-objective: #9333ea;
+  --c-activity: #5E6E46;
+  --c-assessment: #BE5E28;
+}
+:root[data-theme="light"] .gnode { box-shadow: 0 1px 3px rgba(28, 36, 52, 0.08); }
+:root[data-theme="light"] .search-results { box-shadow: 0 12px 32px rgba(28, 36, 52, 0.18); }
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+html, body { overflow-x: hidden; }
+html { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+body {
+  margin: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 15px;
+  line-height: 1.45;
+}
+button { font: inherit; cursor: pointer; color: inherit; }
+input { font: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.8rem; }
+.error { color: var(--bad); padding: 0.25rem 1rem; }
+
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 200;
+  background: var(--accent); color: var(--accent-ink); padding: 0.6rem 1rem;
+  border-radius: 0 0 8px 0; font-weight: 600; text-decoration: none;
+}
+.skip-link:focus { left: 0; }
+
+/* ---------- login ---------- */
+.login-wrap { min-height: 100vh; display: grid; place-items: center; }
+.login-card {
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: 12px;
+  padding: 2rem; width: 360px; display: flex; flex-direction: column; gap: 0.9rem;
+}
+.login-card h1 { font-size: 1.15rem; margin: 0; }
+.login-card label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+.login-card input {
+  padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink);
+}
+.login-card input:focus { border-color: var(--accent); outline: none; }
+.login-card button[type="submit"] {
+  background: var(--accent); color: var(--accent-ink); border: none; border-radius: 8px;
+  padding: 0.6rem; font-weight: 600;
+}
+.login-card button[type="submit"]:hover { filter: brightness(1.1); }
+
