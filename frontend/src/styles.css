@@ -197,3 +197,118 @@ input { font: inherit; }
 /* ---------- global search ---------- */
 .global-search { position: relative; flex: 1 1 200px; min-width: 0; max-width: 460px; }
 
+/* ---------- topbar: responsive breakpoints ---------- */
+/* narrow enough that the search bar can't share the row with title+nav+user
+   menu at a usable width: give it the whole second row instead of squeezing */
+@media (max-width: 780px) {
+  .global-search { flex-basis: 100%; max-width: none; order: 4; }
+  .user-menu { order: 3; }
+}
+/* title no longer fits alongside nav + user menu: swap to the short form */
+@media (max-width: 480px) {
+  .topbar-title-full { display: none; }
+  .topbar-title-short { display: inline; }
+  .topbar { gap: 0.5rem 0.8rem; }
+  .topbar nav { gap: 0.9rem; }
+}
+/* nothing left to shrink: let the user menu's name collapse to just the avatar */
+@media (max-width: 360px) {
+  .user-name, .caret { display: none; }
+  .user-menu-trigger { padding: 0.22rem; }
+}
+.global-search input {
+  width: 100%; padding: 0.45rem 0.8rem; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink);
+}
+.global-search input::placeholder { color: var(--muted); }
+.global-search input:focus { border-color: var(--accent); outline: none; }
+.search-results {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  margin: 0; padding: 0.3rem; list-style: none;
+  background: var(--bg-card); border: 1px solid var(--line-strong); border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); max-height: 380px; overflow-y: auto;
+}
+.search-results li button {
+  display: flex; flex-direction: column; gap: 0.1rem; width: 100%; text-align: left;
+  background: none; border: none; border-radius: 6px; padding: 0.45rem 0.6rem;
+}
+.search-results li button:hover { background: var(--bg-raised); }
+.hit-name { font-size: 0.88rem; }
+.hit-path { font-size: 0.74rem; color: var(--muted); }
+.no-hit { padding: 0.5rem 0.6rem; }
+
+/* ---------- graph ---------- */
+.graph-layout { flex: 1; display: flex; min-height: 0; position: relative; }
+.graph-wrap { flex: 1; position: relative; min-width: 0; }
+.graph-svg { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.graph-svg:active { cursor: grabbing; }
+.graph-edge { fill: none; stroke: var(--line-strong); stroke-width: 1.5; }
+.loading-pad { padding: 2rem; }
+
+.gnode {
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 7px 8px; width: 260px; transition: border-color 0.12s ease;
+}
+.gnode:hover { border-color: var(--line-strong); }
+.gnode.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(77, 141, 238, 0.25); }
+.gnode-type-row { display: flex; align-items: center; gap: 6px; min-height: 18px; }
+.gnode-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.gnode-type {
+  font-size: 0.66rem; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.07em; font-weight: 600;
+}
+.gnode-count {
+  font-size: 0.66rem; color: var(--muted); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; line-height: 1.5;
+}
+.gnode-info {
+  margin-left: auto; background: none; border: none; border-radius: 6px; color: var(--muted);
+  display: flex; align-items: center; padding: 2px 5px; flex-shrink: 0;
+}
+.gnode-info:hover { color: var(--accent); background: var(--bg-raised); }
+.gnode-main {
+  display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%;
+  background: none; border: none; padding: 0 2px; text-align: left; border-radius: 6px;
+}
+.gnode-name-clip { flex: 1; min-width: 0; overflow: hidden; }
+.gnode-name {
+  display: inline-block; font-size: 0.88rem; font-weight: 550; white-space: nowrap;
+  transition: transform linear; will-change: transform;
+}
+.gnode-leaf {
+  flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  border-style: dashed;
+}
+.gnode-leaf-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.gnode-leaf-type {
+  font-size: 0.62rem; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.07em; font-weight: 600;
+}
+.gnode-leaf-name { font-size: 0.8rem; font-weight: 450; }
+.access-icon { display: inline-flex; align-items: center; flex-shrink: 0; }
+.access-edit { color: var(--ok); }
+.access-view { color: var(--accent); }
+.access-context { color: var(--muted); opacity: 0.7; }
+.gnode-chevron { color: var(--muted); display: flex; transition: transform 0.15s ease; flex-shrink: 0; }
+.gnode-chevron.open { transform: rotate(90deg); }
+.gnode-chevron[role="button"] { cursor: pointer; padding: 3px; border-radius: 5px; margin: -3px; }
+.gnode-chevron[role="button"]:hover { color: var(--ink); background: var(--bg-raised); }
+.gnode-search {
+  width: 100%; padding: 0.35rem 0.6rem; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 0.8rem;
+}
+.gnode-search::placeholder { color: var(--muted); }
+.gnode-search:focus { border-color: var(--accent); outline: none; }
+
+.graph-toolbar {
+  position: absolute; bottom: 16px; left: 16px; display: flex; gap: 4px;
+  background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 4px;
+}
+.graph-toolbar button {
+  background: none; border: none; border-radius: 7px; padding: 0.3rem 0.7rem;
+  color: var(--muted); font-size: 0.95rem; min-width: 34px;
+}
+.graph-toolbar button:hover { color: var(--ink); background: var(--bg-raised); }
+
