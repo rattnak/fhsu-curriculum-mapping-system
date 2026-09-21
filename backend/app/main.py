@@ -130,3 +130,235 @@ def report_orphans(scope: Optional[int] = None, user: User = Depends(get_current
     return reports.orphan_report(session, _report_scope(session, user, scope))
 
 
+# ---------- agent-friendly endpoints (also used by the UI sidebar) ----------
+
+def _path_ids(session: Session, node_id: int) -> list[int]:
+    path, current, seen = [], node_id, set()
+    while current is not None and current not in seen:
+        seen.add(current)
+        path.append(current)
+        n = session.get(Node, current)
+        current = n.parent_node_id if n else None
+    return list(reversed(path))
+
+
+def _grandparent_id(session: Session, node_id: int) -> Optional[int]:
+    n = session.get(Node, node_id)
+    parent = session.get(Node, n.parent_node_id) if n and n.parent_node_id else None
+    return parent.parent_node_id if parent else None
+
+
+def _can_approve(session: Session, user: User, node: Node) -> bool:
+    """For a course, approval checks the direct parent (program) — whoever
+    holds edit access at or above that program approves courses created
+    under it. For a module, approval checks the grandparent (course's
+    parent, i.e. program) — the same authority either way."""
+    if is_admin(user):
+        return True
+    if node.node_type == NodeType.course:
+        return node.parent_node_id is not None and can_edit(session, user, node.parent_node_id)
+    gp_id = _grandparent_id(session, node.node_id)
+    return gp_id is not None and can_edit(session, user, gp_id)
+
+
+def _pending_visible_ids(session: Session, user: User) -> set:
+    """Pending nodes this user may see beyond their own creations: everything
+    they're eligible to approve. Feeds build_tree's viewer_pending_ok."""
+    if is_admin(user):
+        return set()  # admins see all pending nodes unconditionally (is_admin_viewer)
+    pending = session.exec(select(Node).where(Node.status == ApprovalStatus.pending)).all()
+    return {n.node_id for n in pending if _can_approve(session, user, n)}
+
+
+@app.get("/search")
+def search(
+    q: str,
+    scope: Optional[int] = None,
+    limit: int = 25,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Search nodes (colleges, departments, courses, modules) by name or course title,
+    restricted to the caller's permitted subtree. Returns each hit with its full path
+    so a client (or AI agent) can expand/navigate straight to it."""
+    ql = q.strip().lower()
+    if not ql:
+        return {"query": q, "results": []}
+
+    nodes = session.exec(select(Node)).all()
+    by_id = {n.node_id: n for n in nodes}
+    from .models import Course as CourseModel
+    title_by_node = {c.node_id: c.course_title for c in session.exec(select(CourseModel)).all()}
+
+    pending_ok = _pending_visible_ids(session, user)
+    admin = is_admin(user)
+
+    def pending_hidden(n: Node) -> bool:
+        if n.status != ApprovalStatus.pending or admin:
+            return False
+        if n.created_by_user_id == user.user_id:
+            return False
+        return n.node_id not in pending_ok
+
+    def visible(nid: int) -> bool:
+        if scope is not None and not is_descendant_or_self(session, nid, scope):
+            return False
+        if pending_hidden(by_id[nid]):
+            return False
+        return can_view(session, user, nid)
+
+    results = []
+    for n in nodes:
+        haystack = n.node_name.lower()
+        title = title_by_node.get(n.node_id, "")
+        if (ql in haystack or ql in title.lower()) and visible(n.node_id):
+            pids = _path_ids(session, n.node_id)
+            results.append({
+                "id": n.node_id,
+                "name": n.node_name,
+                "type": n.node_type.value,
+                "course_title": title or None,
+                "path_ids": pids,
+                "path": [by_id[p].node_name for p in pids],
+            })
+            if len(results) >= limit:
+                break
+    return {"query": q, "results": results}
+
+
+@app.get("/node/{node_id}")
+def node_detail(
+    node_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Full structured detail for one node: path, course info, outcomes with text,
+    activities, and descendant counts. Structured for AI-agent consumption."""
+    n = session.get(Node, node_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if not can_view(session, user, node_id):
+        raise HTTPException(status_code=403, detail="Node outside your permission")
+    if (n.status == ApprovalStatus.pending and not is_admin(user)
+            and n.created_by_user_id != user.user_id and not _can_approve(session, user, n)):
+        # look identical to the ordinary scope-denial above — don't leak that a
+        # pending node exists here to someone who isn't its creator or approver
+        raise HTTPException(status_code=403, detail="Node outside your permission")
+
+    from .models import Activity, Course as CourseModel, Mapping, Outcome
+    pids = _path_ids(session, node_id)
+    names = {x.node_id: x.node_name for x in session.exec(select(Node)).all()}
+    detail = {
+        "id": n.node_id,
+        "name": n.node_name,
+        "type": n.node_type.value,
+        "path": [names[p] for p in pids],
+        "path_ids": pids,
+        "can_edit": can_edit(session, user, node_id),
+        "status": n.status.value,
+    }
+
+    all_nodes = session.exec(select(Node)).all()
+    children = [x for x in all_nodes if x.parent_node_id == node_id]
+    detail["child_count"] = len(children)
+
+    course = session.exec(select(CourseModel).where(CourseModel.node_id == node_id)).first()
+    mappings, activities = [], []
+    if course:
+        detail["course_title"] = course.course_title
+        detail["credit_hours"] = course.credit_hours
+        mappings = session.exec(select(Mapping).where(Mapping.course_id == course.course_id)).all()
+        activities = session.exec(select(Activity).where(Activity.course_id == course.course_id)).all()
+    elif n.node_type.value == "module":
+        mappings = session.exec(select(Mapping).where(Mapping.module_node_id == node_id)).all()
+        activities = session.exec(select(Activity).where(Activity.module_node_id == node_id)).all()
+
+    if n.node_type.value == "program" and n.degree_type:
+        detail["degree_type"] = n.degree_type
+
+    outcome_by_id = {o.outcome_id: o for o in session.exec(select(Outcome)).all()}
+    seen_outcomes = {}
+    for m in mappings:
+        o = outcome_by_id.get(m.target_outcome_id)
+        if o and o.outcome_id not in seen_outcomes:
+            parent = outcome_by_id.get(o.parent_outcome_id)
+            seen_outcomes[o.outcome_id] = {
+                "id": o.outcome_id,
+                "code": o.outcome_code,
+                "text": o.outcome_text,
+                "level": o.outcome_level.value,
+                "mastery": m.mastery_level.value,
+                "hlc_criterion_tag": o.hlc_criterion_tag,
+                "parent_outcome": parent.outcome_code if parent else None,
+            }
+    detail["outcomes"] = list(seen_outcomes.values())
+    detail["activities"] = [
+        {"type": a.activity_type.value, "name": a.activity_name} for a in activities
+    ]
+
+    if n.node_type.value == "program":
+        from .models import ActionItem
+        all_action_items = session.exec(select(ActionItem)).all()
+        items_by_outcome = defaultdict(list)
+        for ai in all_action_items:
+            items_by_outcome[ai.outcome_id].append(ai)
+        detail["program_outcomes"] = [
+            {
+                "id": o.outcome_id,
+                "code": o.outcome_code,
+                "text": o.outcome_text,
+                "hlc_criterion_tag": o.hlc_criterion_tag,
+                "action_items": [
+                    {
+                        "id": ai.action_item_id,
+                        "short_title": ai.short_title,
+                        "description": ai.description,
+                        "person_responsible": ai.person_responsible,
+                        "target_date": ai.target_date,
+                        "resources_needed": ai.resources_needed,
+                        "status": ai.status.value,
+                    }
+                    for ai in items_by_outcome.get(o.outcome_id, [])
+                ],
+            }
+            for o in outcome_by_id.values()
+            if o.owning_node_id == node_id and o.outcome_level.value == "program"
+        ]
+
+    if n.node_type.value in ("department", "program", "college", "college_dept_grouping", "institution"):
+        def count_desc(target_type):
+            ids, total = {node_id}, 0
+            changed = True
+            while changed:
+                changed = False
+                for x in all_nodes:
+                    if x.parent_node_id in ids and x.node_id not in ids:
+                        ids.add(x.node_id)
+                        changed = True
+            return sum(1 for x in all_nodes if x.node_id in ids and x.node_type.value == target_type)
+        detail["descendant_courses"] = count_desc("course")
+        detail["descendant_modules"] = count_desc("module")
+    return detail
+
+
+@app.get("/compliance/{node_id}")
+def compliance_check(
+    node_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Check a course/module (or aggregate a department/college) against the
+    university taxonomy format rules. Structured pass/fail output for UI and AI agents."""
+    n = session.get(Node, node_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if not can_view(session, user, node_id):
+        raise HTTPException(status_code=403, detail="Node outside your permission")
+    if (n.status == ApprovalStatus.pending and not is_admin(user)
+            and n.created_by_user_id != user.user_id and not _can_approve(session, user, n)):
+        raise HTTPException(status_code=403, detail="Node outside your permission")
+    if n.node_type.value in ("institution", "college_dept_grouping"):
+        raise HTTPException(status_code=400, detail="Run compliance at college level or below")
+    return compliance.check_node(session, n)
+
+
