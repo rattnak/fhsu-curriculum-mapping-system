@@ -362,3 +362,86 @@ def compliance_check(
     return compliance.check_node(session, n)
 
 
+# ---------- curriculum creation (admin/editor within scope) ----------
+
+class CourseCreate(BaseModel):
+    parent_node_id: int  # program node
+    code: str            # e.g. "MGT 305"
+    title: str
+    credit_hours: int = 3
+
+
+class ModuleCreate(BaseModel):
+    parent_node_id: int  # course node
+    name: str            # e.g. "Module 3: Applied Strategy"
+
+
+def _check_edit_target(session: Session, user: User, parent_id: int, expected: NodeType) -> Node:
+    parent = session.get(Node, parent_id)
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent node not found")
+    if parent.node_type != expected:
+        raise HTTPException(status_code=400, detail=f"Parent must be a {expected.value}")
+    if not can_edit(session, user, parent_id):
+        raise HTTPException(status_code=403, detail="No edit access here")
+    if parent.status == ApprovalStatus.pending:
+        # the frontend hides this path too, but it's enforced here since this
+        # API is documented for direct/AI-agent use, not just the UI. Unreachable
+        # for course creation (parent=department, which is never pending — see
+        # ApprovalStatus's docstring), but stays active/necessary for module
+        # creation, since a freshly-created course does start out pending.
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{parent.node_name}' is still pending approval; it can't have children yet",
+        )
+    return parent
+
+
+@app.post("/courses", status_code=201)
+def create_course(
+    body: CourseCreate,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    parent = _check_edit_target(session, user, body.parent_node_id, NodeType.program)
+    code = body.code.strip()
+    if not code or not body.title.strip():
+        raise HTTPException(status_code=422, detail="Code and title are required")
+    dup = session.exec(
+        select(Node).where(Node.parent_node_id == parent.node_id, Node.node_name == code)
+    ).first()
+    if dup:
+        raise HTTPException(status_code=409, detail=f"'{code}' already exists in this program")
+    node = Node(node_type=NodeType.course, node_name=code, parent_node_id=parent.node_id,
+                status=ApprovalStatus.pending, created_by_user_id=user.user_id)
+    session.add(node)
+    session.flush()
+    course = Course(course_title=body.title.strip(), credit_hours=body.credit_hours,
+                    owning_node_id=parent.node_id, node_id=node.node_id)
+    session.add(course)
+    session.commit()
+    return {"node_id": node.node_id, "course_id": course.course_id, "name": code, "status": "pending"}
+
+
+@app.post("/modules", status_code=201)
+def create_module(
+    body: ModuleCreate,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    parent = _check_edit_target(session, user, body.parent_node_id, NodeType.course)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Module name is required")
+    dup = session.exec(
+        select(Node).where(Node.parent_node_id == parent.node_id, Node.node_name == name)
+    ).first()
+    if dup:
+        raise HTTPException(status_code=409, detail=f"'{name}' already exists in this course")
+    node = Node(node_type=NodeType.module, node_name=name, parent_node_id=parent.node_id,
+                status=ApprovalStatus.pending, created_by_user_id=user.user_id)
+    session.add(node)
+    session.commit()
+    return {"node_id": node.node_id, "name": name, "status": "pending"}
+
+
