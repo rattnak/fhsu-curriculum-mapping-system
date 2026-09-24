@@ -445,3 +445,91 @@ def create_module(
     return {"node_id": node.node_id, "name": name, "status": "pending"}
 
 
+@app.get("/approvals")
+def list_approvals(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """Pending course/module nodes the caller is eligible to approve
+    (parent- or grandparent-scope edit access, or admin — see _can_approve)."""
+    pending = session.exec(select(Node).where(Node.status == ApprovalStatus.pending)).all()
+    creators = {u.user_id: u for u in session.exec(select(User)).all()}
+    names = {n.node_id: n.node_name for n in session.exec(select(Node)).all()}
+    out = []
+    for n in pending:
+        if not _can_approve(session, user, n):
+            continue
+        pids = _path_ids(session, n.node_id)
+        creator = creators.get(n.created_by_user_id)
+        out.append({
+            "node_id": n.node_id,
+            "name": n.node_name,
+            "type": n.node_type.value,
+            "path": [names[p] for p in pids],
+            "path_ids": pids,
+            "created_by": creator.username if creator else None,
+        })
+    return {"approvals": out}
+
+
+@app.post("/nodes/{node_id}/approve")
+def approve_node(
+    node_id: int,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    n = session.get(Node, node_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if n.status != ApprovalStatus.pending:
+        raise HTTPException(status_code=400, detail="Node is not pending approval")
+    if not _can_approve(session, user, n):
+        raise HTTPException(status_code=403, detail="No approval access here")
+    n.status = ApprovalStatus.active
+    session.add(n)
+    session.commit()
+    return {"node_id": n.node_id, "status": "active"}
+
+
+@app.post("/nodes/{node_id}/reject")
+def reject_node(
+    node_id: int,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    n = session.get(Node, node_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if n.status != ApprovalStatus.pending:
+        raise HTTPException(status_code=400, detail="Node is not pending approval")
+    if not _can_approve(session, user, n):
+        raise HTTPException(status_code=403, detail="No approval access here")
+
+    from .models import Activity, Mapping
+
+    # a freshly-created pending node is always a leaf in practice (children
+    # can't be added under a still-pending node), but walk defensively in case
+    # that constraint is ever relaxed
+    all_nodes = session.exec(select(Node)).all()
+    doomed = {node_id}
+    changed = True
+    while changed:
+        changed = False
+        for x in all_nodes:
+            if x.parent_node_id in doomed and x.node_id not in doomed:
+                doomed.add(x.node_id)
+                changed = True
+
+    doomed_courses = session.exec(select(Course).where(Course.node_id.in_(doomed))).all()
+    doomed_course_ids = {c.course_id for c in doomed_courses}
+    if doomed_course_ids:
+        for m in session.exec(select(Mapping).where(Mapping.course_id.in_(doomed_course_ids))).all():
+            session.delete(m)
+        for a in session.exec(select(Activity).where(Activity.course_id.in_(doomed_course_ids))).all():
+            session.delete(a)
+        for c in doomed_courses:
+            session.delete(c)
+    for x in all_nodes:
+        if x.node_id in doomed:
+            session.delete(x)
+    session.commit()
+    return {"node_id": node_id, "status": "rejected"}
+
+
