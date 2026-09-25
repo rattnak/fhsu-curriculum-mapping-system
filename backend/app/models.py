@@ -133,3 +133,13 @@ class User(SQLModel, table=True):
     scope_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
 
 
+class Resource(SQLModel, table=True):
+    """Curated accreditation / pedagogy reference library (not live web search)."""
+    resource_id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    url: str
+    source: str
+    tags: str  # comma-separated: bloom, hlc, outcomes, module-design, fhsu, assessment, qm
+    blurb: str = ""
+
+

@@ -533,3 +533,25 @@ def reject_node(
     return {"node_id": node_id, "status": "rejected"}
 
 
+@app.get("/resources")
+def resources(
+    q: str = "",
+    tag: str = "",
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Curated accreditation/pedagogy reference library. Filter by keyword and/or tag."""
+    rows = session.exec(select(Resource)).all()
+    ql, tl = q.strip().lower(), tag.strip().lower()
+    out = []
+    for r in rows:
+        tags = [t.strip() for t in r.tags.split(",")]
+        if tl and tl not in tags:
+            continue
+        if ql and ql not in f"{r.title} {r.source} {r.blurb} {r.tags}".lower():
+            continue
+        out.append({"id": r.resource_id, "title": r.title, "url": r.url,
+                    "source": r.source, "tags": tags, "blurb": r.blurb})
+    return {"resources": out}
+
+
