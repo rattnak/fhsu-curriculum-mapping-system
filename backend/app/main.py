@@ -555,3 +555,24 @@ def resources(
     return {"resources": out}
 
 
+@app.get("/advise/{node_id}")
+def advise_endpoint(
+    node_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Rule-based module-organization recommendations (Bloom verbs, scaffolding,
+    module shape, assessment alignment) for one course. Structured for UI + AI agents."""
+    n = session.get(Node, node_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if not can_view(session, user, node_id):
+        raise HTTPException(status_code=403, detail="Node outside your permission")
+    if (n.status == ApprovalStatus.pending and not is_admin(user)
+            and n.created_by_user_id != user.user_id and not _can_approve(session, user, n)):
+        raise HTTPException(status_code=403, detail="Node outside your permission")
+    if n.node_type != NodeType.course:
+        raise HTTPException(status_code=400, detail="Advice runs on course nodes")
+    return advise.advise_course(session, n)
+
+
