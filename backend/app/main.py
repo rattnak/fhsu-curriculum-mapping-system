@@ -576,3 +576,33 @@ def advise_endpoint(
     return advise.advise_course(session, n)
 
 
+@app.get("/outcome-nodes/{outcome_id}")
+def outcome_mapped_nodes(
+    outcome_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Node ids (courses + modules, within the caller's scope) mapped to an outcome —
+    including via descendant outcomes. Powers select-outcome -> highlight-on-canvas."""
+    from .models import Mapping, Outcome
+    outcomes = session.exec(select(Outcome)).all()
+    target_ids = {outcome_id}
+    changed = True
+    while changed:  # include children of the outcome (a PLO highlights its CLOs' nodes)
+        changed = False
+        for o in outcomes:
+            if o.parent_outcome_id in target_ids and o.outcome_id not in target_ids:
+                target_ids.add(o.outcome_id)
+                changed = True
+    course_node_by_course = {c.course_id: c.node_id for c in session.exec(select(Course)).all()}
+    node_ids = set()
+    for m in session.exec(select(Mapping)).all():
+        if m.target_outcome_id in target_ids:
+            if m.module_node_id:
+                node_ids.add(m.module_node_id)
+            if m.course_id in course_node_by_course:
+                node_ids.add(course_node_by_course[m.course_id])
+    allowed = [nid for nid in node_ids if can_view(session, user, nid)]
+    return {"outcome_id": outcome_id, "node_ids": sorted(allowed)}
+
+
