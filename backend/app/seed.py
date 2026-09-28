@@ -641,3 +641,71 @@ def seed() -> None:
             ]),
         ])
 
+        # ---- HHP closing-the-loop action items (adapted from a real FHSU HHP BS
+        # program assessment annual report, for realistic demo content) ----
+        if hhp_plos:
+            import time as _time
+            from .models import ActionItem, ActionItemStatus
+            s.add(ActionItem(
+                outcome_id=hhp_plos[0].outcome_id,
+                short_title="Review the four HHP 220 exams for PLO alignment",
+                description=("PLO1.b assessment instruments (module exams) should be reviewed and "
+                             "assessed to ensure PLO assessment accuracy — results have consistently "
+                             "fallen short of the 80% benchmark across the last four terms."),
+                person_responsible="HHP 220 teaching faculty",
+                target_date="Spring 2025",
+                resources_needed="None required",
+                status=ActionItemStatus.in_progress,
+                created_by_user_id=None, created_at=_time.time(),
+            ))
+            s.add(ActionItem(
+                outcome_id=hhp_plos[2].outcome_id if len(hhp_plos) > 2 else hhp_plos[0].outcome_id,
+                short_title="Separate conflict-resolution and writing-literacy rubric criteria",
+                description=("A writing-literacy component was folded into the HHP 450 conflict "
+                             "resolution rubric, diluting the PLO's own measurement. Split into two "
+                             "rubrics so each assesses its own outcome cleanly."),
+                person_responsible="HHP 450 instructor",
+                target_date="AY24-25",
+                resources_needed="None required",
+                status=ActionItemStatus.open,
+                created_by_user_id=None, created_at=_time.time(),
+            ))
+            s.commit()
+
+        # ---- curated resource library ----
+        for title, url, source, tags, blurb in [
+            ("Bloom's Taxonomy (Revised) Guide",
+             "https://cft.vanderbilt.edu/guides-sub-pages/blooms-taxonomy/",
+             "Vanderbilt Center for Teaching", "bloom,outcomes",
+             "Overview of the Anderson & Krathwohl revised taxonomy levels."),
+            ("Bloom's Taxonomy Verb Chart (measurable action verbs)",
+             "https://tips.uark.edu/blooms-taxonomy-verb-chart/",
+             "University of Arkansas TIPS", "bloom,outcomes,writing",
+             "Action-verb lists per Bloom level for writing measurable outcomes."),
+            ("HLC Criteria for Accreditation",
+             "https://www.hlcommission.org/Policies/criteria-and-core-components.html",
+             "Higher Learning Commission", "hlc,accreditation",
+             "The criteria our hlc_criterion_tag values map to (esp. 3.A, 3.B, 4.B)."),
+            ("HLC Assumed Practices",
+             "https://www.hlcommission.org/Policies/assumed-practices.html",
+             "Higher Learning Commission", "hlc,accreditation",
+             "Baseline practices HLC assumes of accredited institutions."),
+            ("NILOA Assessment Resource Library",
+             "https://www.learningoutcomesassessment.org/",
+             "National Institute for Learning Outcomes Assessment", "assessment,outcomes",
+             "Research and templates for outcomes assessment programs."),
+            ("Quality Matters Higher-Ed Rubric Standards",
+             "https://www.qualitymatters.org/qa-resources/rubric-standards/higher-ed-rubric",
+             "Quality Matters", "qm,module-design",
+             "Alignment standards 2 & 3 cover measurable objectives and assessment alignment."),
+            ("FHSU Teaching Innovation and Learning Technologies (TILT)",
+             "https://www.fhsu.edu/tilt/",
+             "Fort Hays State University", "fhsu,module-design",
+             "FHSU's instructional design and course development resources. Verify page with TILT."),
+            ("FHSU Accreditation",
+             "https://www.fhsu.edu/accreditation/",
+             "Fort Hays State University", "fhsu,hlc,accreditation",
+             "FHSU's HLC accreditation reference page. Verify URL with assessment office."),
+        ]:
+            s.add(Resource(title=title, url=url, source=source, tags=tags, blurb=blurb))
+

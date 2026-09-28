@@ -143,3 +143,19 @@ class Resource(SQLModel, table=True):
     blurb: str = ""
 
 
+class ActionItem(SQLModel, table=True):
+    """A 'closing the loop' commitment against a program-level outcome, mirroring
+    the action-item tables FHSU departments already track by hand in their annual
+    assessment reports (short title, person responsible, target date, status)."""
+    action_item_id: Optional[int] = Field(default=None, primary_key=True)
+    outcome_id: int = Field(foreign_key="outcome.outcome_id")  # the PLO this addresses
+    short_title: str
+    description: str = ""  # "Brief Description with Rationale" in the source reports
+    person_responsible: str = ""
+    target_date: str = ""  # free text, e.g. "Fall 2025" — assessment cycles aren't calendar dates
+    resources_needed: str = ""
+    status: ActionItemStatus = Field(default=ActionItemStatus.open)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    created_at: float = 0.0
+
+

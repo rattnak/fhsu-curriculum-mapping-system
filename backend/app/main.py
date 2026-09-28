@@ -606,3 +606,137 @@ def outcome_mapped_nodes(
     return {"outcome_id": outcome_id, "node_ids": sorted(allowed)}
 
 
+# ---------- action items ("closing the loop" commitments against a PLO) ----------
+
+class ActionItemCreate(BaseModel):
+    outcome_id: int
+    short_title: str
+    description: str = ""
+    person_responsible: str = ""
+    target_date: str = ""
+    resources_needed: str = ""
+
+
+class ActionItemUpdate(BaseModel):
+    short_title: Optional[str] = None
+    description: Optional[str] = None
+    person_responsible: Optional[str] = None
+    target_date: Optional[str] = None
+    resources_needed: Optional[str] = None
+    status: Optional[str] = None
+
+
+def _outcome_program_node(session: Session, outcome_id: int) -> Node:
+    from .models import Outcome
+    o = session.get(Outcome, outcome_id)
+    if not o:
+        raise HTTPException(status_code=404, detail="Outcome not found")
+    if o.outcome_level.value != "program" or o.owning_node_id is None:
+        raise HTTPException(status_code=400, detail="Action items attach to program-level outcomes only")
+    node = session.get(Node, o.owning_node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Owning program node not found")
+    return node
+
+
+def _action_item_payload(ai) -> dict:
+    return {
+        "id": ai.action_item_id,
+        "outcome_id": ai.outcome_id,
+        "short_title": ai.short_title,
+        "description": ai.description,
+        "person_responsible": ai.person_responsible,
+        "target_date": ai.target_date,
+        "resources_needed": ai.resources_needed,
+        "status": ai.status.value,
+    }
+
+
+@app.post("/action-items", status_code=201)
+def create_action_item(
+    body: ActionItemCreate,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    from .models import ActionItem
+
+    program_node = _outcome_program_node(session, body.outcome_id)
+    if not can_edit(session, user, program_node.node_id):
+        raise HTTPException(status_code=403, detail="No edit access here")
+    title = body.short_title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="Short title is required")
+    ai = ActionItem(
+        outcome_id=body.outcome_id,
+        short_title=title,
+        description=body.description.strip(),
+        person_responsible=body.person_responsible.strip(),
+        target_date=body.target_date.strip(),
+        resources_needed=body.resources_needed.strip(),
+        created_by_user_id=user.user_id,
+        created_at=time.time(),
+    )
+    session.add(ai)
+    session.commit()
+    session.refresh(ai)
+    return _action_item_payload(ai)
+
+
+@app.patch("/action-items/{action_item_id}")
+def update_action_item(
+    action_item_id: int,
+    body: ActionItemUpdate,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    from .models import ActionItem, ActionItemStatus
+
+    ai = session.get(ActionItem, action_item_id)
+    if not ai:
+        raise HTTPException(status_code=404, detail="Action item not found")
+    program_node = _outcome_program_node(session, ai.outcome_id)
+    if not can_edit(session, user, program_node.node_id):
+        raise HTTPException(status_code=403, detail="No edit access here")
+    if body.short_title is not None:
+        title = body.short_title.strip()
+        if not title:
+            raise HTTPException(status_code=422, detail="Short title is required")
+        ai.short_title = title
+    if body.description is not None:
+        ai.description = body.description.strip()
+    if body.person_responsible is not None:
+        ai.person_responsible = body.person_responsible.strip()
+    if body.target_date is not None:
+        ai.target_date = body.target_date.strip()
+    if body.resources_needed is not None:
+        ai.resources_needed = body.resources_needed.strip()
+    if body.status is not None:
+        try:
+            ai.status = ActionItemStatus(body.status)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid status")
+    session.add(ai)
+    session.commit()
+    session.refresh(ai)
+    return _action_item_payload(ai)
+
+
+@app.delete("/action-items/{action_item_id}")
+def delete_action_item(
+    action_item_id: int,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    from .models import ActionItem
+
+    ai = session.get(ActionItem, action_item_id)
+    if not ai:
+        raise HTTPException(status_code=404, detail="Action item not found")
+    program_node = _outcome_program_node(session, ai.outcome_id)
+    if not can_edit(session, user, program_node.node_id):
+        raise HTTPException(status_code=403, detail="No edit access here")
+    session.delete(ai)
+    session.commit()
+    return {"action_item_id": action_item_id, "deleted": True}
+
+
