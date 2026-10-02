@@ -740,3 +740,71 @@ def delete_action_item(
     return {"action_item_id": action_item_id, "deleted": True}
 
 
+@app.get("/access")
+def access_map(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Which departments are shared with the caller. Structure only (college ->
+    department -> course names for shared departments) — never module detail."""
+    nodes = session.exec(select(Node)).all()
+    by_parent = {}
+    for n in nodes:
+        by_parent.setdefault(n.parent_node_id, []).append(n)
+    courses = {c.node_id: c for c in session.exec(select(Course)).all()}
+
+    grants = scope_grants(session, user)
+
+    def dept_access(node_id: int) -> Optional[str]:
+        """Best access level whose grant subtree intersects this department."""
+        if is_admin(user):
+            return "edit"
+        best = None
+        for sid, acc in grants:
+            if (is_descendant_or_self(session, node_id, sid)
+                    or is_descendant_or_self(session, sid, node_id)):
+                if acc == "edit":
+                    return "edit"
+                best = "view"
+        return best
+
+    def course_list(dept_id: int):
+        out = []
+        ids, frontier = {dept_id}, [dept_id]
+        while frontier:
+            nxt = []
+            for pid in frontier:
+                for child in by_parent.get(pid, []):
+                    if child.node_id in ids:
+                        continue
+                    ids.add(child.node_id)
+                    nxt.append(child.node_id)
+                    if child.status == ApprovalStatus.pending or child.node_type != NodeType.course:
+                        continue
+                    c = courses.get(child.node_id)
+                    out.append({"id": child.node_id, "name": child.node_name,
+                                "title": c.course_title if c else None})
+            frontier = nxt
+        return sorted(out, key=lambda x: x["name"])
+
+    colleges = []
+    for n in nodes:
+        if n.node_type != NodeType.college:
+            continue
+        departments = []
+        for d in by_parent.get(n.node_id, []):
+            if d.node_type != NodeType.department:
+                continue
+            access = dept_access(d.node_id)
+            departments.append({
+                "id": d.node_id,
+                "name": d.node_name,
+                "shared": access is not None,
+                "access": access,
+                "courses": course_list(d.node_id) if access else None,
+            })
+        colleges.append({"id": n.node_id, "name": n.node_name,
+                         "departments": sorted(departments, key=lambda x: x["name"])})
+    return {"username": user.username, "role": user.role.value, "colleges": colleges}
+
+
