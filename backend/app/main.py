@@ -808,3 +808,41 @@ def access_map(
     return {"username": user.username, "role": user.role.value, "colleges": colleges}
 
 
+# ---------- node editing (admin/editor within edit grants) ----------
+
+class NodeUpdate(BaseModel):
+    name: Optional[str] = None
+    course_title: Optional[str] = None
+    credit_hours: Optional[int] = None
+
+
+@app.patch("/nodes/{node_id}")
+def update_node(
+    node_id: int,
+    body: NodeUpdate,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    n = session.get(Node, node_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if n.node_type in (NodeType.institution, NodeType.college_dept_grouping):
+        raise HTTPException(status_code=400, detail="This level is not editable")
+    if not can_edit(session, user, node_id):
+        raise HTTPException(status_code=403, detail="No edit access here")
+    if body.name is not None and body.name.strip():
+        n.node_name = body.name.strip()
+        session.add(n)
+    if n.node_type == NodeType.course and (body.course_title is not None or body.credit_hours is not None):
+        course = session.exec(select(Course).where(Course.node_id == node_id)).first()
+        if course:
+            if body.course_title is not None and body.course_title.strip():
+                course.course_title = body.course_title.strip()
+            if body.credit_hours is not None and 1 <= body.credit_hours <= 6:
+                course.credit_hours = body.credit_hours
+            session.add(course)
+    session.commit()
+    session.refresh(n)
+    return {"node_id": n.node_id, "name": n.node_name}
+
+
