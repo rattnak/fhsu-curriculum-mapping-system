@@ -709,3 +709,28 @@ def seed() -> None:
         ]:
             s.add(Resource(title=title, url=url, source=source, tags=tags, blurb=blurb))
 
+        # ---- test users ----
+        s.add(User(username="admin_test", first_name="Alex", last_name="Arnold", password_hash=hash_password("admin123"),
+                   role=Role.admin, scope_node_id=fhsu.node_id))
+        s.add(User(username="editor_test", first_name="Emerson", last_name="Ellis", password_hash=hash_password("editor123"),
+                   role=Role.editor, scope_node_id=abs_college.node_id))
+        s.add(User(username="viewer_test", first_name="Victoria", last_name="Vann", password_hash=hash_password("viewer123"),
+                   role=Role.viewer, scope_node_id=abs_dept.node_id))
+        s.commit()
+
+        # demo multi-scope grant: editor also gets view access to Nursing
+        from .models import UserScope
+        editor = s.exec(select(User).where(User.username == 'editor_test')).first()
+        nursing = s.exec(select(Node).where(Node.node_name == 'Department of Nursing')).first()
+        if editor and nursing:
+            s.add(UserScope(user_id=editor.user_id, scope_node_id=nursing.node_id, access='view'))
+            s.commit()
+
+        n_courses = len(s.exec(select(Course)).all())
+        n_nodes = len(s.exec(select(Node)).all())
+        n_programs = len(s.exec(select(Node).where(Node.node_type == NodeType.program)).all())
+        print(f"Seeded {n_nodes} nodes ({n_programs} programs, {n_courses} courses) across {len(FHSU_STRUCTURE)} colleges.")
+
+
+if __name__ == "__main__":
+    seed()

@@ -159,3 +159,13 @@ class ActionItem(SQLModel, table=True):
     created_at: float = 0.0
 
 
+class UserScope(SQLModel, table=True):
+    """Extra access grants beyond the user's primary scope. A user can hold any mix:
+    an entire college, single departments across colleges, view here and edit there.
+    Admins bypass grants entirely."""
+    user_scope_id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.user_id")
+    scope_node_id: int = Field(foreign_key="node.node_id")
+    access: str = "view"  # 'view' | 'edit'
+
+

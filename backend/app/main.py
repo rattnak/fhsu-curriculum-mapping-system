@@ -846,3 +846,96 @@ def update_node(
     return {"node_id": n.node_id, "name": n.node_name}
 
 
+# ---------- user management (admin only) ----------
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    first_name: str = ""
+    last_name: str = ""
+
+
+class ScopeGrant(BaseModel):
+    scope_node_id: int
+    access: str  # 'view' | 'edit'
+
+
+def _user_payload(session: Session, u: User) -> dict:
+    names = {n.node_id: n.node_name for n in session.exec(select(Node)).all()}
+    extra = session.exec(select(UserScope).where(UserScope.user_id == u.user_id)).all()
+    grants = []
+    if u.scope_node_id is not None:
+        grants.append({"id": None, "scope_node_id": u.scope_node_id,
+                       "node_name": names.get(u.scope_node_id, "?"),
+                       "access": "view" if u.role == Role.viewer else "edit",
+                       "primary": True})
+    for g in extra:
+        grants.append({"id": g.user_scope_id, "scope_node_id": g.scope_node_id,
+                       "node_name": names.get(g.scope_node_id, "?"),
+                       "access": g.access, "primary": False})
+    return {"user_id": u.user_id, "username": u.username,
+            "first_name": u.first_name, "last_name": u.last_name,
+            "role": u.role.value, "grants": grants}
+
+
+@app.get("/users")
+def list_users(user: User = Depends(require_admin), session: Session = Depends(get_session)):
+    return {"users": [_user_payload(session, u) for u in session.exec(select(User)).all()]}
+
+
+@app.post("/users", status_code=201)
+def create_user(body: UserCreate, user: User = Depends(require_admin),
+                session: Session = Depends(get_session)):
+    username = body.username.strip().lower()
+    if not username or not body.password:
+        raise HTTPException(status_code=422, detail="Username and password are required")
+    if session.exec(select(User).where(User.username == username)).first():
+        raise HTTPException(status_code=409, detail=f"Username '{username}' already exists")
+    u = User(username=username, password_hash=hash_password(body.password),
+             first_name=body.first_name.strip(), last_name=body.last_name.strip(),
+             role=Role.viewer, scope_node_id=None)
+    session.add(u)
+    session.commit()
+    session.refresh(u)
+    return _user_payload(session, u)
+
+
+@app.post("/users/{user_id}/scopes", status_code=201)
+def grant_scope(user_id: int, body: ScopeGrant, user: User = Depends(require_admin),
+                session: Session = Depends(get_session)):
+    target = session.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.role == Role.admin:
+        raise HTTPException(status_code=400, detail="Admins already have full access")
+    node = session.get(Node, body.scope_node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Scope node not found")
+    if node.node_type not in (NodeType.college, NodeType.department, NodeType.program):
+        raise HTTPException(status_code=400, detail="Grants attach to colleges, departments, or programs")
+    if body.access not in ("view", "edit"):
+        raise HTTPException(status_code=422, detail="Access must be 'view' or 'edit'")
+    dup = session.exec(select(UserScope).where(
+        UserScope.user_id == user_id, UserScope.scope_node_id == body.scope_node_id)).first()
+    if dup:
+        dup.access = body.access
+        session.add(dup)
+        session.commit()
+        return _user_payload(session, target)
+    session.add(UserScope(user_id=user_id, scope_node_id=body.scope_node_id, access=body.access))
+    session.commit()
+    return _user_payload(session, target)
+
+
+@app.delete("/users/{user_id}/scopes/{user_scope_id}")
+def revoke_scope(user_id: int, user_scope_id: int, user: User = Depends(require_admin),
+                 session: Session = Depends(get_session)):
+    g = session.get(UserScope, user_scope_id)
+    if not g or g.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Grant not found")
+    session.delete(g)
+    session.commit()
+    target = session.get(User, user_id)
+    return _user_payload(session, target)
+
+
