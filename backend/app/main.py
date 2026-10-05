@@ -939,3 +939,39 @@ def revoke_scope(user_id: int, user_scope_id: int, user: User = Depends(require_
     return _user_payload(session, target)
 
 
+@app.get("/org-nodes")
+def org_nodes(user: User = Depends(require_editor), session: Session = Depends(get_session)):
+    """Colleges with their departments, for the grant-scope / invite-scope
+    dropdown. Admins see the whole org, unchanged. Editors see only
+    colleges/departments they hold (or inherit) edit access to — the same
+    "does this grant intersect this node" check /access uses — so an editor
+    is never offered a scope they don't actually control."""
+    nodes = session.exec(select(Node)).all()
+    by_parent = {}
+    for n in nodes:
+        by_parent.setdefault(n.parent_node_id, []).append(n)
+
+    admin = is_admin(user)
+    grants = None if admin else scope_grants(session, user)
+
+    def grantable(node_id: int) -> bool:
+        if admin:
+            return True
+        return any(acc == "edit" and (is_descendant_or_self(session, node_id, sid)
+                                      or is_descendant_or_self(session, sid, node_id))
+                  for sid, acc in grants)
+
+    out = []
+    for n in nodes:
+        if n.node_type != NodeType.college:
+            continue
+        depts = [{"id": d.node_id, "name": d.node_name}
+                for d in by_parent.get(n.node_id, [])
+                if d.node_type == NodeType.department and grantable(d.node_id)]
+        whole = grantable(n.node_id)
+        if whole or depts:
+            out.append({"id": n.node_id, "name": n.node_name,
+                       "departments": depts, "grantable_whole": whole})
+    return {"colleges": out}
+
+
