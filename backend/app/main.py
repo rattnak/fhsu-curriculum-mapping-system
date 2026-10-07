@@ -975,3 +975,95 @@ def org_nodes(user: User = Depends(require_editor), session: Session = Depends(g
     return {"colleges": out}
 
 
+# ---------- invite links (admin/editor, one-time confirmation-link activation) ----------
+
+class InviteCreate(BaseModel):
+    role: str  # 'admin' | 'editor' | 'viewer'
+    scope_node_id: Optional[int] = None
+    access: str = "view"  # 'view' | 'edit'; ignored when scope_node_id is None
+
+
+def _invite_payload(session: Session, inv: Invite) -> dict:
+    node = session.get(Node, inv.scope_node_id) if inv.scope_node_id else None
+    creator = session.get(User, inv.created_by_user_id)
+    return {
+        "invite_id": inv.invite_id,
+        "token": inv.token,
+        "role": inv.role.value,
+        "scope_node_id": inv.scope_node_id,
+        "scope_node_name": node.node_name if node else None,
+        "access": inv.access,
+        "created_by": creator.username if creator else None,
+        "created_at": inv.created_at,
+        "expires_at": inv.expires_at,
+        "used_at": inv.used_at,
+    }
+
+
+@app.post("/invites", status_code=201)
+def create_invite(
+    body: InviteCreate,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    try:
+        role = Role(body.role)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid role")
+    if role == Role.admin and not is_admin(user):
+        raise HTTPException(status_code=403, detail="Only admins can invite admins")
+
+    scope_node_id, access = None, None
+    if body.scope_node_id is not None:
+        if role == Role.admin:
+            raise HTTPException(status_code=422, detail="Admin invites don't take a scope")
+        node = session.get(Node, body.scope_node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Scope node not found")
+        if node.node_type not in (NodeType.college, NodeType.department, NodeType.program):
+            raise HTTPException(status_code=400, detail="Scope must be a college, department, or program")
+        access = "view" if role == Role.viewer else ("edit" if body.access == "edit" else "view")
+        if access == "edit" and not can_edit(session, user, body.scope_node_id):
+            raise HTTPException(status_code=403, detail="You don't have edit access to that scope")
+        if access == "view" and not can_view(session, user, body.scope_node_id):
+            raise HTTPException(status_code=403, detail="You don't have access to that scope")
+        scope_node_id = body.scope_node_id
+
+    now = time.time()
+    inv = Invite(token=secrets.token_urlsafe(32), role=role,
+                scope_node_id=scope_node_id, access=access,
+                created_by_user_id=user.user_id, created_at=now,
+                expires_at=now + INVITE_TTL_SECONDS)
+    session.add(inv)
+    session.commit()
+    session.refresh(inv)
+    return _invite_payload(session, inv)
+
+
+@app.get("/invites")
+def list_invites(user: User = Depends(require_editor), session: Session = Depends(get_session)):
+    q = select(Invite)
+    if not is_admin(user):
+        q = q.where(Invite.created_by_user_id == user.user_id)
+    invites = session.exec(q.order_by(Invite.created_at.desc())).all()
+    return {"invites": [_invite_payload(session, i) for i in invites]}
+
+
+@app.delete("/invites/{invite_id}")
+def revoke_invite(
+    invite_id: int,
+    user: User = Depends(require_editor),
+    session: Session = Depends(get_session),
+):
+    inv = session.get(Invite, invite_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    if inv.created_by_user_id != user.user_id and not is_admin(user):
+        raise HTTPException(status_code=403, detail="Not your invite")
+    if inv.used_at is not None:
+        raise HTTPException(status_code=409, detail="Invite already used; nothing to revoke")
+    session.delete(inv)
+    session.commit()
+    return {"invite_id": invite_id, "revoked": True}
+
+

@@ -169,3 +169,20 @@ class UserScope(SQLModel, table=True):
     access: str = "view"  # 'view' | 'edit'
 
 
+class Invite(SQLModel, table=True):
+    """One-time confirmation link for account activation — a stopgap until
+    real institutional SSO/email auth exists. An admin or editor issues one
+    with a role (+ optional single scope grant) baked in but no identity; the
+    invitee supplies their own name/username/password at accept time. Single
+    use: used_at is set the moment it's redeemed, and a token can never be
+    redeemed twice."""
+    invite_id: Optional[int] = Field(default=None, primary_key=True)
+    token: str = Field(index=True, unique=True)
+    role: Role
+    scope_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")
+    access: Optional[str] = None  # 'view' | 'edit'; set only when scope_node_id is set
+    created_by_user_id: int = Field(foreign_key="user.user_id")
+    created_at: float
+    expires_at: float
+    used_at: Optional[float] = None
+    used_by_user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
