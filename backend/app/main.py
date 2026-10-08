@@ -1067,3 +1067,84 @@ def revoke_invite(
     return {"invite_id": invite_id, "revoked": True}
 
 
+@app.get("/invites/{token}/preview")
+def preview_invite(token: str, session: Session = Depends(get_session)):
+    """Public, unauthenticated: lets the invite-acceptance screen show who
+    invited whom to what before any identity is supplied. Leaks nothing but
+    role/scope-name/access/inviter-display-name."""
+    inv = session.exec(select(Invite).where(Invite.token == token)).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    if inv.used_at is not None:
+        raise HTTPException(status_code=410, detail="This invite has already been used")
+    if inv.expires_at < time.time():
+        raise HTTPException(status_code=410, detail="This invite has expired")
+    node = session.get(Node, inv.scope_node_id) if inv.scope_node_id else None
+    creator = session.get(User, inv.created_by_user_id)
+    inviter_name = None
+    if creator:
+        inviter_name = f"{creator.first_name} {creator.last_name}".strip() or creator.username
+    return {
+        "role": inv.role.value,
+        "scope_node_name": node.node_name if node else None,
+        "access": inv.access,
+        "invited_by": inviter_name,
+    }
+
+
+class InviteAccept(BaseModel):
+    first_name: str
+    last_name: str
+    username: str
+    password: str
+
+
+@app.post("/invites/{token}/accept")
+def accept_invite(token: str, body: InviteAccept, session: Session = Depends(get_session)):
+    """Public, unauthenticated: redeems a one-time invite into a normal,
+    fully-functional User row and starts a session for it — same response
+    shape as POST /login so the frontend can log the person straight in."""
+    inv = session.exec(select(Invite).where(Invite.token == token)).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    if inv.used_at is not None:
+        raise HTTPException(status_code=410, detail="This invite has already been used")
+    if inv.expires_at < time.time():
+        raise HTTPException(status_code=410, detail="This invite has expired")
+
+    first_name, last_name = body.first_name.strip(), body.last_name.strip()
+    username = body.username.strip().lower()
+    if not first_name or not last_name:
+        raise HTTPException(status_code=422, detail="First and last name are required")
+    if not username or not body.password:
+        raise HTTPException(status_code=422, detail="Username and password are required")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=422, detail="Password must be at least 6 characters")
+    if session.exec(select(User).where(User.username == username)).first():
+        raise HTTPException(status_code=409, detail=f"Username '{username}' already exists")
+
+    # the invite's scope grant is applied as a UserScope row, never as this
+    # user's primary scope_node_id: scope_grants() derives a PRIMARY scope's
+    # access level purely from the user's role ("view" if viewer else "edit"),
+    # so a primary scope can't represent an editor with only view access —
+    # only an explicit UserScope row stores 'access' independent of role.
+    u = User(username=username, password_hash=hash_password(body.password),
+             first_name=first_name, last_name=last_name,
+             role=inv.role, scope_node_id=None)
+    session.add(u)
+    session.flush()
+    if inv.scope_node_id is not None:
+        session.add(UserScope(user_id=u.user_id, scope_node_id=inv.scope_node_id,
+                              access=inv.access or "view"))
+
+    inv.used_at = time.time()
+    inv.used_by_user_id = u.user_id
+    session.add(inv)
+    session.commit()
+    session.refresh(u)
+
+    return {
+        "token": make_token(u.username),
+        "username": u.username, "first_name": u.first_name, "last_name": u.last_name,
+        "role": u.role.value, "scope_node_id": u.scope_node_id,
+    }
