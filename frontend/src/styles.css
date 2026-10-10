@@ -772,3 +772,18 @@ th { background: var(--bg-raised); position: sticky; top: 0; }
 .edit-form { margin: 0.5rem 0 0.8rem; }
 
 
+/* ---------- drawer empty state + legend ---------- */
+.sidebar-head-label {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); font-weight: 650;
+}
+.empty-hint { text-align: center; padding: 1.2rem 0.5rem 0.4rem; color: var(--muted); }
+.empty-hint svg { color: var(--line-strong); margin-bottom: 0.5rem; }
+.empty-hint .sidebar-title { color: var(--ink); font-size: 1rem; margin: 0 0 0.4rem; }
+.empty-hint p { font-size: 0.87rem; margin: 0 0 0.5rem; }
+.inline-info-icon {
+  display: inline-flex; vertical-align: -1px; color: var(--accent);
+}
+.legend-list { list-style: none; margin: 0; padding: 0 !important; display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 1rem; }
+.legend-list li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.84rem; color: var(--ink); margin: 0 !important; }
+.sidebar-empty section { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); margin-top: 1rem; padding-top: 0.95rem; }
