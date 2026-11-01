@@ -127,7 +127,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     first_name: str = ""
     last_name: str = ""
-    password_hash: str  # sha256 for hardcoded test users; real hashing when real auth lands
+    password_hash: str  # scrypt$salt$digest (legacy unsalted sha256 accepted until next login)
     role: Role
     # primary scope; None for users whose access comes only from UserScope grants
     scope_node_id: Optional[int] = Field(default=None, foreign_key="node.node_id")

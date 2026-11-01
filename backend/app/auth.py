@@ -1,12 +1,14 @@
-"""Minimal auth for the MVP: 3 hardcoded test users (seeded in DB) + HMAC-signed bearer tokens.
+"""Auth: salted scrypt password hashes + HMAC-signed bearer tokens (stdlib only).
 
-Stdlib-only token scheme (no python-jose dependency): payload is
-"username:expiry_ts", signature is HMAC-SHA256 over it. Replace with Supabase
-auth / real JWT when moving past hardcoded users.
+Token payload is "username:expiry_ts", signature is HMAC-SHA256 over it.
+Set CMS_SECRET in any real deployment; with CMS_ENV=production the app refuses
+to start on the built-in dev secret. Legacy unsalted-SHA256 hashes (from the
+original seeded test users) still verify and are upgraded on next login.
 """
 import hashlib
 import hmac
 import os
+import secrets
 import time
 from typing import Optional
 
@@ -17,14 +19,35 @@ from sqlmodel import Session, select
 from .database import get_session
 from .models import User
 
-SECRET = os.environ.get("CMS_SECRET", "dev-secret-change-me")
+DEV_SECRET = "dev-secret-change-me"
+SECRET = os.environ.get("CMS_SECRET", DEV_SECRET)
+if os.environ.get("CMS_ENV") == "production" and SECRET == DEV_SECRET:
+    raise RuntimeError("CMS_SECRET must be set to a long random value when CMS_ENV=production")
 TOKEN_TTL_SECONDS = 8 * 3600
 
 bearer = HTTPBearer(auto_error=False)
 
 
+_SCRYPT = dict(n=2**14, r=8, p=1, dklen=32)
+
+
 def hash_password(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(pw.encode(), salt=salt, **_SCRYPT)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def verify_password(pw: str, stored: str) -> bool:
+    if stored.startswith("scrypt$"):
+        _, salt_hex, digest_hex = stored.split("$")
+        digest = hashlib.scrypt(pw.encode(), salt=bytes.fromhex(salt_hex), **_SCRYPT)
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    # legacy unsalted sha256
+    return hmac.compare_digest(hashlib.sha256(pw.encode()).hexdigest(), stored)
+
+
+def needs_rehash(stored: str) -> bool:
+    return not stored.startswith("scrypt$")
 
 
 def _sign(payload: str) -> str:

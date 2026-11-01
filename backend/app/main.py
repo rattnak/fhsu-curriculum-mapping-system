@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from . import advise, compliance, reports
-from .auth import get_current_user, hash_password, make_token, require_admin, require_editor
+from .auth import (get_current_user, hash_password, make_token, needs_rehash, require_admin,
+                   require_editor, verify_password)
 from .database import get_session, init_db
 from .models import ApprovalStatus, Course, Invite, Node, NodeType, Resource, Role, User, UserScope
 from .perms import can_edit, can_view, default_scope, is_admin, scope_grants
@@ -47,8 +48,12 @@ class LoginRequest(BaseModel):
 @app.post("/login")
 def login(body: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.username == body.username)).first()
-    if not user or user.password_hash != hash_password(body.password):
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(body.password)
+        session.add(user)
+        session.commit()
     return {
         "token": make_token(user.username),
         "username": user.username,
