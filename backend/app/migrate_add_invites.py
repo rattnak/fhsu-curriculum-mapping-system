@@ -13,10 +13,12 @@ Safe to re-run:
 """
 from sqlalchemy import text
 
-from .database import engine
+from .database import IS_SQLITE, engine
 
 
 def migrate() -> None:
+    if not IS_SQLITE:
+        raise SystemExit("SQLite-only migration; a fresh Postgres database gets the full schema from create_all().")
     with engine.begin() as conn:
         tables = {row[0] for row in conn.execute(
             text("SELECT name FROM sqlite_master WHERE type='table'"))}

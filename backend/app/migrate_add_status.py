@@ -14,10 +14,12 @@ lets seed.py/create_all rebuild it — that path picks up the new columns for fr
 """
 from sqlalchemy import text
 
-from .database import engine
+from .database import IS_SQLITE, engine
 
 
 def migrate() -> None:
+    if not IS_SQLITE:
+        raise SystemExit("SQLite-only migration; a fresh Postgres database gets the full schema from create_all().")
     with engine.begin() as conn:
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(node)"))}
 
