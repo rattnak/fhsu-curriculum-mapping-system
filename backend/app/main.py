@@ -1,4 +1,5 @@
 """FastAPI app: login, curriculum tree (role-scoped), and reports."""
+import os
 import secrets
 import time
 from collections import defaultdict
@@ -19,11 +20,15 @@ from .tree import build_tree, is_descendant_or_self
 
 INVITE_TTL_SECONDS = 7 * 24 * 3600
 
+# Comma-separated list of allowed frontend origins; defaults to local Vite dev.
+CORS_ORIGINS = [o.strip() for o in os.environ.get(
+    "CMS_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
+
 app = FastAPI(title="FHSU Curriculum Mapping API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
