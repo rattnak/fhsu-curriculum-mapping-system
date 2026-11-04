@@ -13,6 +13,8 @@ Deliberately seeded report fodder (in Applied Business Studies):
   - CLO orphan (MGT 400 CLO with no parent PLO)  -> orphan report
   - PLO4 with no course mappings                 -> dead-end report
 """
+import os
+
 from sqlmodel import Session, select
 
 from .auth import hash_password
@@ -709,21 +711,25 @@ def seed() -> None:
         ]:
             s.add(Resource(title=title, url=url, source=source, tags=tags, blurb=blurb))
 
-        # ---- test users ----
-        s.add(User(username="admin_test", first_name="Alex", last_name="Arnold", password_hash=hash_password("admin123"),
-                   role=Role.admin, scope_node_id=fhsu.node_id))
-        s.add(User(username="editor_test", first_name="Emerson", last_name="Ellis", password_hash=hash_password("editor123"),
-                   role=Role.editor, scope_node_id=abs_college.node_id))
-        s.add(User(username="viewer_test", first_name="Victoria", last_name="Vann", password_hash=hash_password("viewer123"),
-                   role=Role.viewer, scope_node_id=abs_dept.node_id))
-        s.commit()
+        # ---- test users: demo/dev only. Real deployments set CMS_SEED_TEST_USERS=0 and
+        # create the first admin with `python -m app.create_admin` instead. ----
+        if os.environ.get("CMS_SEED_TEST_USERS", "1") != "0":
+            s.add(User(username="admin_test", first_name="Alex", last_name="Arnold", password_hash=hash_password("admin123"),
+                       role=Role.admin, scope_node_id=fhsu.node_id))
+            s.add(User(username="editor_test", first_name="Emerson", last_name="Ellis", password_hash=hash_password("editor123"),
+                       role=Role.editor, scope_node_id=abs_college.node_id))
+            s.add(User(username="viewer_test", first_name="Victoria", last_name="Vann", password_hash=hash_password("viewer123"),
+                       role=Role.viewer, scope_node_id=abs_dept.node_id))
+            s.commit()
 
-        # demo multi-scope grant: editor also gets view access to Nursing
-        from .models import UserScope
-        editor = s.exec(select(User).where(User.username == 'editor_test')).first()
-        nursing = s.exec(select(Node).where(Node.node_name == 'Department of Nursing')).first()
-        if editor and nursing:
-            s.add(UserScope(user_id=editor.user_id, scope_node_id=nursing.node_id, access='view'))
+            # demo multi-scope grant: editor also gets view access to Nursing
+            from .models import UserScope
+            editor = s.exec(select(User).where(User.username == 'editor_test')).first()
+            nursing = s.exec(select(Node).where(Node.node_name == 'Department of Nursing')).first()
+            if editor and nursing:
+                s.add(UserScope(user_id=editor.user_id, scope_node_id=nursing.node_id, access='view'))
+                s.commit()
+        else:
             s.commit()
 
         n_courses = len(s.exec(select(Course)).all())
