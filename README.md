@@ -29,6 +29,28 @@ npm run dev
 
 Swagger docs: http://localhost:8000/docs
 
+## Deploying for real users (Supabase Postgres)
+
+1. Create a Supabase project; copy the **pooler** connection string (Project Settings → Database).
+2. In `backend/`, copy `.env.example` to `.env` and fill in `DATABASE_URL`, a random `CMS_SECRET`
+   (the API refuses to start with `CMS_ENV=production` on the default secret), and `CMS_CORS_ORIGINS`.
+3. Load the env, then create the schema + catalog and the first admin (no `admin123`-style test accounts):
+   ```bash
+   set -a; source .env; set +a
+   .venv/bin/pip install -r requirements.txt
+   .venv/bin/python -m app.seed                       # CMS_SEED_TEST_USERS=0 skips demo users
+   .venv/bin/python -m app.create_admin jdoe "Jane" "Doe"
+   .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+4. Build the frontend with `frontend/.env.production` (see `.env.production.example`):
+   `VITE_API_URL=<your API>` and `VITE_DEMO_MODE=false`, then `npm run build`.
+5. Add everyone else from the Users view or with invite links.
+
+Do not expose these tables through Supabase's auto-generated REST API: scope/role checks
+live in FastAPI. The `migrate_add_*.py` scripts are SQLite-only and not needed on a fresh Postgres.
+Passwords are salted scrypt (old SHA-256 hashes upgrade on next login). Local dev is unchanged:
+`frontend/.env.development` keeps demo mode on.
+
 ## Test users
 
 | username     | password   | role   | scope                                  |
