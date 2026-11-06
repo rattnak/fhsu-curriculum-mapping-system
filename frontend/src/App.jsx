@@ -101,8 +101,8 @@ function GlobalSearch({ onPick }) {
 }
 
 // DEMO MODE: bypasses the login screen and adds a role switcher in the user
-// menu. Set to false to restore the normal login flow.
-const DEMO_MODE = true
+// menu. Off unless VITE_DEMO_MODE=true (see frontend/.env.development).
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
 const DEMO_USERS = {
   admin: { username: 'admin_test', password: 'admin123' },
   editor: { username: 'editor_test', password: 'editor123' },

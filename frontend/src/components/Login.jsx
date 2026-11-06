@@ -23,21 +23,21 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="login-wrap">
+    <main className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <h1>FHSU Curriculum Mapping</h1>
-        <p className="muted">Test users: admin_test / editor_test / viewer_test</p>
+        {import.meta.env.VITE_DEMO_MODE === 'true' && <p className="muted">Test users: admin_test / editor_test / viewer_test</p>}
         <label>
           Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required autoFocus />
         </label>
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
-    </div>
+    </main>
   )
 }
