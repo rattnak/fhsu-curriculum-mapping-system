@@ -47,22 +47,22 @@ export default function AcceptInvite({ token, onActivated }) {
 
   if (previewError) {
     return (
-      <div className="login-wrap">
+      <main className="login-wrap">
         <div className="login-card">
           <h1>FHSU Curriculum Mapping</h1>
           <p className="error" role="alert">{previewError}</p>
           <p className="muted">Ask whoever sent you this link to generate a new one.</p>
         </div>
-      </div>
+      </main>
     )
   }
 
   if (!preview) {
-    return <div className="login-wrap"><p className="muted" role="status">Checking invite…</p></div>
+    return <main className="login-wrap"><p className="muted" role="status">Checking invite…</p></main>
   }
 
   return (
-    <div className="login-wrap">
+    <main className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <h1>You're invited</h1>
         <p className="muted">
@@ -72,15 +72,15 @@ export default function AcceptInvite({ token, onActivated }) {
         </p>
         <label>
           First name
-          <input value={form.first_name} onChange={set('first_name')} required autoFocus />
+          <input value={form.first_name} onChange={set('first_name')} required autoComplete="given-name" autoFocus />
         </label>
         <label>
           Last name
-          <input value={form.last_name} onChange={set('last_name')} required />
+          <input value={form.last_name} onChange={set('last_name')} required autoComplete="family-name" />
         </label>
         <label>
           Choose a username
-          <input value={form.username} onChange={set('username')} required autoComplete="off" />
+          <input value={form.username} onChange={set('username')} required autoComplete="username" />
         </label>
         <label>
           Choose a password
@@ -93,6 +93,6 @@ export default function AcceptInvite({ token, onActivated }) {
         {formError && <p className="error" role="alert">{formError}</p>}
         <button type="submit" disabled={busy}>{busy ? 'Activating…' : 'Activate account'}</button>
       </form>
-    </div>
+    </main>
   )
 }

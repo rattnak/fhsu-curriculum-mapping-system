@@ -76,6 +76,7 @@ function GlobalSearch({ onPick }) {
         onKeyDown={onKeyDown}
         onFocus={() => results && setOpen(true)}
       />
+      <div className="sr-only" role="status">{open && results ? (results.length ? `${results.length} result${results.length === 1 ? '' : 's'} found` : 'No matches') : ''}</div>
       {open && results && (
         <ul className="search-results" id="global-search-results" role="listbox" aria-label="Search results">
           {results.length === 0 && <li className="muted no-hit">No matches.</li>}
@@ -332,7 +333,7 @@ export default function App() {
       <header className="topbar no-print">
         <h1>
           <span className="topbar-title-full">FHSU Curriculum Map</span>
-          <span className="topbar-title-short" aria-hidden="true">FHSU CMS</span>
+          <span className="topbar-title-short">FHSU CMS</span>
         </h1>
         <nav aria-label="Views">
           <button className={view === 'graph' ? 'active' : ''} onClick={() => setView('graph')}>Graph</button>

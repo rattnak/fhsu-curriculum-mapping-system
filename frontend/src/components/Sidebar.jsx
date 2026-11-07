@@ -554,7 +554,7 @@ export default function Sidebar({ nodeId, onClose, onNavigate, canEdit, onTreeCh
     <>
       <div className="sidebar-head">
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-          <span className="type-chip" style={detail ? { color: `var(${typeVarFor(detail.type)})`, borderColor: 'currentColor' } : undefined}>
+          <span className="type-chip" style={detail ? { borderColor: `var(${typeVarFor(detail.type)})` } : undefined}>
             {detail ? TYPE_LABELS[detail.type] : '…'}
           </span>
           {detail?.status === 'pending' && <span className="pending-badge" title="Not visible to others until approved">Pending approval</span>}
