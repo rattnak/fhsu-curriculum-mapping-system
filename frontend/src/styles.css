@@ -51,8 +51,8 @@
   --accent: #064851;        /* Bluelight — 10.23:1 on white; Tiger Gold text fails here (1.7:1) */
   --accent-ink: #ffffff;
   --grid-dot: #dde3ee;
-  --ok: #5E6E46;             /* Frontier, darkened for text contrast — 5.5:1 on white */
-  --warn: #BE5E28;           /* Downtown — 4.36:1 on white */
+  --ok: #50603A;             /* Frontier darkened for text — 6.8:1 on white, 5.6:1 on its own 14% tint */
+  --warn: #A04B1D;           /* Downtown darkened for text — 6.0:1 on white (brand #BE5E28 is 4.36:1) */
   --bad: #4B180E;            /* Bison — 14.62:1 on white */
 
   --c-institution: #064851;
@@ -86,7 +86,9 @@ body {
 button { font: inherit; cursor: pointer; color: inherit; }
 input { font: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+input:focus-visible, select:focus-visible { outline-offset: 0; }
 .muted { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .small { font-size: 0.8rem; }
 .error { color: var(--bad); padding: 0.25rem 1rem; }
 
@@ -109,7 +111,7 @@ input { font: inherit; }
   padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 8px;
   background: var(--bg); color: var(--ink);
 }
-.login-card input:focus { border-color: var(--accent); outline: none; }
+.login-card input:focus { border-color: var(--accent); }
 .login-card button[type="submit"] {
   background: var(--accent); color: var(--accent-ink); border: none; border-radius: 8px;
   padding: 0.6rem; font-weight: 600;
@@ -221,7 +223,7 @@ input { font: inherit; }
   background: var(--bg); color: var(--ink);
 }
 .global-search input::placeholder { color: var(--muted); }
-.global-search input:focus { border-color: var(--accent); outline: none; }
+.global-search input:focus { border-color: var(--accent); }
 .search-results {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
   margin: 0; padding: 0.3rem; list-style: none;
@@ -390,7 +392,7 @@ input { font: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer { transition: none; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
 .add-btn {
   display: flex; align-items: center; gap: 0.4rem;
@@ -405,7 +407,7 @@ input { font: inherit; }
   padding: 0.42rem 0.6rem; border: 1px solid var(--line); border-radius: 7px;
   background: var(--bg); color: var(--ink); font-size: 0.85rem;
 }
-.add-form input:focus, .add-form select:focus { border-color: var(--accent); outline: none; }
+.add-form input:focus, .add-form select:focus { border-color: var(--accent); }
 .add-form .error { padding: 0; font-size: 0.8rem; }
 .add-form-actions { display: flex; gap: 0.5rem; }
 .type-chip {
