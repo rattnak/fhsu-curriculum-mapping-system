@@ -269,8 +269,9 @@ input:focus-visible, select:focus-visible { outline-offset: 0; }
   display: flex; align-items: center; padding: 2px 5px; flex-shrink: 0;
 }
 .gnode-info:hover { color: var(--accent); background: var(--bg-raised); }
+.gnode-main-row { display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%; }
 .gnode-main {
-  display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%;
+  display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;
   background: none; border: none; padding: 0 2px; text-align: left; border-radius: 6px;
 }
 .gnode-name-clip { flex: 1; min-width: 0; overflow: hidden; }
@@ -295,14 +296,14 @@ input:focus-visible, select:focus-visible { outline-offset: 0; }
 .access-context { color: var(--muted); opacity: 0.7; }
 .gnode-chevron { color: var(--muted); display: flex; transition: transform 0.15s ease; flex-shrink: 0; }
 .gnode-chevron.open { transform: rotate(90deg); }
-.gnode-chevron[role="button"] { cursor: pointer; padding: 3px; border-radius: 5px; margin: -3px; }
-.gnode-chevron[role="button"]:hover { color: var(--ink); background: var(--bg-raised); }
+button.gnode-chevron { cursor: pointer; background: none; border: none; padding: 6px; margin: -6px -4px -6px 0; border-radius: 6px; }
+button.gnode-chevron:hover { color: var(--ink); background: var(--bg-raised); }
 .gnode-search {
   width: 100%; padding: 0.35rem 0.6rem; border: 1px solid var(--line); border-radius: 7px;
   background: var(--bg); color: var(--ink); font-size: 0.8rem;
 }
 .gnode-search::placeholder { color: var(--muted); }
-.gnode-search:focus { border-color: var(--accent); outline: none; }
+.gnode-search:focus { border-color: var(--accent); }
 
 .graph-toolbar {
   position: absolute; bottom: 16px; left: 16px; display: flex; gap: 4px;

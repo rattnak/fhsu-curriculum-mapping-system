@@ -165,35 +165,33 @@ function NodeCard({ entry, expanded, filters, onToggle, onSelect, onFilter, sele
             </svg>
           </button>}
         </div>
-        <button
-          className="gnode-main"
-          onClick={() => (childCount && !detailsOpen ? onToggle(node.id) : onSelect(node))}
-          aria-expanded={childCount ? isOpen : undefined}
-          aria-label={detailsOpen ? `Details for ${node.name}` : node.name}
-        >
-          <span className="gnode-name-clip" onMouseEnter={marqueeEnter} onMouseLeave={marqueeLeave}>
-            <span className="gnode-name">{node.name}</span>
-          </span>
-          {childCount > 0 && (
-            detailsOpen ? (
-              <span
-                className={`gnode-chevron${isOpen ? ' open' : ''}`}
-                role="button"
-                tabIndex={0}
-                aria-expanded={isOpen}
-                aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.name}`}
-                onClick={(e) => { e.stopPropagation(); onToggle(node.id) }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onToggle(node.id) } }}
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </span>
-            ) : (
+        <div className="gnode-main-row">
+          <button
+            className="gnode-main"
+            onClick={() => (childCount && !detailsOpen ? onToggle(node.id) : onSelect(node))}
+            aria-expanded={childCount && !detailsOpen ? isOpen : undefined}
+            aria-label={detailsOpen ? `Details for ${node.name}` : node.name}
+          >
+            <span className="gnode-name-clip" onMouseEnter={marqueeEnter} onMouseLeave={marqueeLeave}>
+              <span className="gnode-name">{node.name}</span>
+            </span>
+            {childCount > 0 && !detailsOpen && (
               <span className={`gnode-chevron${isOpen ? ' open' : ''}`} aria-hidden="true">
                 <svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </span>
-            )
+            )}
+          </button>
+          {childCount > 0 && detailsOpen && (
+            <button
+              className={`gnode-chevron${isOpen ? ' open' : ''}`}
+              aria-expanded={isOpen}
+              aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.name}`}
+              onClick={() => onToggle(node.id)}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
           )}
-        </button>
+        </div>
         {searchable && (
           <input
             className="gnode-search"
