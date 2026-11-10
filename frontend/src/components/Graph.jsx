@@ -6,9 +6,23 @@ const Y_GAP = 14
 const BASE_H = 66
 const SEARCH_H = 42
 const SEARCH_THRESHOLD = 7 // children count at which a node gets its own filter bar
-const DRAWER_W = 380 // matches .drawer's width in styles.css — subtracted from the
-                     // usable viewport when the details sidebar is open, so
-                     // centering targets the space actually left for the graph
+const DRAWER_FULL_BP = 640 // at or below this the drawer covers the whole canvas (styles.css)
+// matches .drawer's width in styles.css (min(380px, 90vw)) — subtracted from
+// the usable viewport when the details sidebar is open, so centering targets
+// the space actually left for the graph. On phones the drawer is full-width,
+// so there is no "space beside it" to lay out against: report 0.
+const drawerWidth = () => {
+  const vw = window.innerWidth
+  return vw <= DRAWER_FULL_BP ? 0 : Math.min(380, vw * 0.9)
+}
+const clampK = (k) => Math.min(2.5, Math.max(0.15, k))
+// scale for the starting view: full size when the graph fits, otherwise shrink
+// to fit but never below MIN_AUTO_K, where card text stops being readable. On
+// a phone that leaves the first card readable with the next column peeking in.
+const MIN_AUTO_K = 0.7
+const autoScale = (usable, contentWidth) =>
+  contentWidth <= usable ? 1 : Math.max(MIN_AUTO_K, Math.min(1, usable / (contentWidth + 48)))
+const DRAG_SLOP = 6 // px a press may wander on a node before it becomes a pan
 
 const TYPE_META = {
   institution: { label: 'Institution', varName: '--c-institution' },
@@ -228,6 +242,9 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
   const gRef = useRef(null)
   const view = useRef({ x: 60, y: 0, k: 1 })
   const drag = useRef(null)
+  const pointers = useRef(new Map()) // active pointers, for pinch-zoom
+  const pinch = useRef(null)
+  const suppressClick = useRef(false) // a pan that began on a node must not also click it
   const didInit = useRef(false)
   const anchorId = useRef(null) // node to keep visually fixed across a re-layout
   const anchorExpanding = useRef(false) // pan to reveal children after an expand
@@ -235,6 +252,7 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
   const pendingFocus = useRef(null) // node to pan to once it exists in the layout
   const prevPositions = useRef(new Map())
   const didCenterInitial = useRef(false)
+  const userMoved = useRef(false) // has the user panned/zoomed since the last home view?
 
   // start with root + grouping expanded
   useEffect(() => {
@@ -258,13 +276,24 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
   // it's open, so centering targets the space actually left for the canvas
   // rather than running the math against the full window and ending up
   // behind the drawer
-  const usableWidth = (rectWidth) => Math.max(200, rectWidth - (detailsOpen ? DRAWER_W : 0))
+  const usableWidth = (rectWidth) => Math.max(200, rectWidth - (detailsOpenRef.current ? drawerWidth() : 0))
 
   // centers the layout within the usable width when it fits at scale k;
   // otherwise anchors near the left edge so nothing scrolls off-screen
   const centeredOrLeftX = (rectWidth, contentWidth, k = 1) => {
     const w = usableWidth(rectWidth)
     return contentWidth * k <= w ? (w - contentWidth * k) / 2 : 60
+  }
+
+  // the starting / reset view. On a phone a 260px card at full size fills the
+  // screen and hides that anything lies to its right, so start slightly
+  // zoomed out with the next column peeking in.
+  const homeView = (rect, contentWidth, height = totalHeight) => {
+    const w = usableWidth(rect.width)
+    const k = autoScale(w, contentWidth)
+    const x = contentWidth * k <= w ? (w - contentWidth * k) / 2 : 16
+    userMoved.current = false
+    return { k, x, y: rect.height / 2 - (height * k) / 2 }
   }
 
   // center on first layout (both axes, when the graph fits). Runs once expanded
@@ -277,11 +306,52 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
       didCenterInitial.current = true
       const rect = svgRef.current.getBoundingClientRect()
       const maxX = Math.max(...placed.map((p) => p.x)) + NODE_W
-      view.current.x = centeredOrLeftX(rect.width, maxX)
-      view.current.y = rect.height / 2 - totalHeight / 2
+      view.current = homeView(rect, maxX)
       applyView()
     }
   }, [placed.length, expanded.size])
+
+  // follow the window: when the canvas is resized, re-center a graph that
+  // fits, and otherwise keep it where it is but never let it end up entirely
+  // outside the new, smaller canvas
+  const detailsOpenRef = useRef(detailsOpen)
+  detailsOpenRef.current = detailsOpen
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg || typeof ResizeObserver === 'undefined') return
+    let prev = null
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      const last = prev
+      prev = { width, height }
+      if (!last || !width || !height) return
+      if (last.width === width && last.height === height) return
+      const nodes = layoutCache.current.placed
+      if (!nodes.length) return
+      const { totalHeight: h } = layoutCache.current
+      const maxX = Math.max(...nodes.map((p) => p.x)) + NODE_W
+      if (!userMoved.current) {
+        // untouched since the last home view: simply re-home for the new size
+        view.current = homeView({ width, height }, maxX, h)
+        applyView()
+        return
+      }
+      const v = view.current
+      const w = Math.max(200, width - (detailsOpenRef.current ? drawerWidth() : 0))
+      const contentW = maxX * v.k
+      if (contentW <= w) {
+        v.x = (w - contentW) / 2
+      } else if (v.x > 24 && v.x + contentW > w - 24) {
+        v.x = 24 // spare room on the left while the right is cut off: use it
+      } else if (v.x < 24 && v.x + contentW < w - 24) {
+        v.x = w - 24 - contentW
+      }
+      v.y += (height - last.height) / 2
+      applyView()
+    })
+    ro.observe(svg)
+    return () => ro.disconnect()
+  }, [])
 
   // keep the toggled/filtered node fixed on screen when the layout reflows
   useLayoutEffect(() => {
@@ -289,7 +359,7 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
       resetPending.current = false
       const rect = svgRef.current.getBoundingClientRect()
       const maxX = placed.length ? Math.max(...placed.map((p) => p.x)) + NODE_W : 0
-      view.current = { x: centeredOrLeftX(rect.width, maxX), y: rect.height / 2 - totalHeight / 2, k: 1 }
+      view.current = homeView(rect, maxX)
       applyView()
       anchorId.current = null
       anchorExpanding.current = false
@@ -363,8 +433,24 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
     setFilters({})
   }, [focusRequest])
 
-  const layoutCache = useRef({ placed, edges })
-  layoutCache.current = { placed, edges }
+  // when the details drawer opens it covers the right DRAWER_W px: pan left just enough that the
+  // graph's right edge clears it, without pushing the selected node off the left edge
+  useLayoutEffect(() => {
+    const drawerW = drawerWidth()
+    if (!detailsOpen || !drawerW || !svgRef.current || !placed.length) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const { x, k } = view.current
+    const maxX = Math.max(...placed.map((p) => p.x)) + NODE_W
+    const overlap = x + maxX * k - (rect.width - drawerW - 24)
+    if (overlap <= 0) return
+    const sel = placed.find((p) => p.node.id === selectedId)
+    const minX = sel ? 16 - sel.x * k : -Infinity   // keep the selected node's left edge on-screen
+    view.current.x = Math.max(x - overlap, minX)
+    applyView()
+  }, [detailsOpen])
+
+  const layoutCache = useRef({ placed, edges, totalHeight })
+  layoutCache.current = { placed, edges, totalHeight }
 
   useEffect(applyView)
 
@@ -374,29 +460,84 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
     const px = e.clientX - rect.left
     const py = e.clientY - rect.top
     const { x, y, k } = view.current
-    const nk = Math.min(2.5, Math.max(0.15, k * Math.exp(-e.deltaY * 0.0015)))
+    userMoved.current = true
+    const nk = clampK(k * Math.exp(-e.deltaY * 0.0015))
     view.current = { k: nk, x: px - ((px - x) / k) * nk, y: py - ((py - y) / k) * nk }
     applyView()
   }
 
+  // Panning may start anywhere, including on a node card (on a phone the cards
+  // fill most of the canvas). A press on a card only becomes a pan once it
+  // moves past DRAG_SLOP, so taps still expand/select. Two fingers pinch-zoom.
   function onPointerDown(e) {
-    if (e.target.closest('.gnode')) return
-    drag.current = { sx: e.clientX, sy: e.clientY, ox: view.current.x, oy: view.current.y }
-    svgRef.current.setPointerCapture(e.pointerId)
+    if (e.target.closest('input')) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    suppressClick.current = false
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, k: view.current.k }
+      drag.current = null
+      suppressClick.current = true
+      return
+    }
+    const onNode = !!e.target.closest('.gnode')
+    drag.current = { sx: e.clientX, sy: e.clientY, ox: view.current.x, oy: view.current.y, moved: !onNode }
+    if (!onNode) svgRef.current.setPointerCapture(e.pointerId)
   }
   function onPointerMove(e) {
-    if (!drag.current) return
-    view.current.x = drag.current.ox + (e.clientX - drag.current.sx)
-    view.current.y = drag.current.oy + (e.clientY - drag.current.sy)
+    if (!pointers.current.has(e.pointerId)) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pinch.current && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()]
+      const rect = svgRef.current.getBoundingClientRect()
+      const px = (a.x + b.x) / 2 - rect.left
+      const py = (a.y + b.y) / 2 - rect.top
+      const { x, y, k } = view.current
+      userMoved.current = true
+      const nk = clampK(pinch.current.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.current.dist))
+      view.current = { k: nk, x: px - ((px - x) / k) * nk, y: py - ((py - y) / k) * nk }
+      applyView()
+      return
+    }
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.sx
+    const dy = e.clientY - d.sy
+    if (!d.moved) {
+      if (Math.hypot(dx, dy) < DRAG_SLOP) return
+      d.moved = true
+      suppressClick.current = true
+      svgRef.current.setPointerCapture(e.pointerId)
+    }
+    userMoved.current = true
+    view.current.x = d.ox + dx
+    view.current.y = d.oy + dy
     applyView()
   }
-  function onPointerUp() { drag.current = null }
+  function onPointerUp(e) {
+    pointers.current.delete(e.pointerId)
+    pinch.current = null
+    if (pointers.current.size === 1) {
+      // one finger lifted mid-pinch: keep panning with the one that's left
+      const [p] = [...pointers.current.values()]
+      drag.current = { sx: p.x, sy: p.y, ox: view.current.x, oy: view.current.y, moved: true }
+    } else {
+      drag.current = null
+    }
+  }
+  function onClickCapture(e) {
+    if (!suppressClick.current) return
+    suppressClick.current = false
+    e.stopPropagation()
+    e.preventDefault()
+  }
 
   function zoomBy(f) {
     const rect = svgRef.current.getBoundingClientRect()
     const px = rect.width / 2, py = rect.height / 2
     const { x, y, k } = view.current
-    const nk = Math.min(2.5, Math.max(0.15, k * f))
+    userMoved.current = true
+    const nk = clampK(k * f)
     view.current = { k: nk, x: px - ((px - x) / k) * nk, y: py - ((py - y) / k) * nk }
     applyView()
   }
@@ -439,6 +580,8 @@ export default function Graph({ tree, selectedId, onSelect, focusRequest, highli
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClickCapture={onClickCapture}
         role="application"
         aria-label="Curriculum graph. Click a node to expand it; use the info button on a node for details."
       >
