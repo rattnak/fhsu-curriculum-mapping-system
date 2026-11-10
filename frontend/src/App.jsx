@@ -175,9 +175,10 @@ function CreateFab({ selectedNode, canEditAnywhere, onCreate, drawerOpen }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label="Create"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1.8v10.4M1.8 7h10.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
-        Create
+        <span className="create-fab-label">Create</span>
       </button>
     </div>
   )
@@ -393,8 +394,8 @@ export default function App() {
             drawerOpen={sidebarOpen}
           />
           {highlightIds && (
-            <div className="highlight-banner" role="status">
-              Highlighting {highlightIds.size} mapped node{highlightIds.size !== 1 ? 's' : ''}
+            <div className={`highlight-banner${sidebarOpen ? ' drawer-open' : ''}`} role="status">
+              <span>Highlighting {highlightIds.size} mapped node{highlightIds.size !== 1 ? 's' : ''}</span>
               <button onClick={() => setHighlightedOutcomeId(null)}>Clear</button>
             </div>
           )}

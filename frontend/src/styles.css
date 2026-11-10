@@ -791,3 +791,98 @@ th { background: var(--bg-raised); position: sticky; top: 0; }
 .legend-list { list-style: none; margin: 0; padding: 0 !important; display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 1rem; }
 .legend-list li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.84rem; color: var(--ink); margin: 0 !important; }
 .sidebar-empty section { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); margin-top: 1rem; padding-top: 0.95rem; }
+
+
+/* ---------- responsive: any width ---------- */
+/* menus never grow taller than the window (short laptop / split-screen windows) */
+.user-dropdown { max-height: calc(100dvh - 64px); overflow-y: auto; }
+.search-results { max-height: min(380px, calc(100dvh - 120px)); }
+.create-menu { max-height: calc(100dvh - 140px); overflow-y: auto; }
+/* form rows share the width instead of sitting at a fixed 150px and clipping their own text */
+.user-create label { flex: 1 1 170px; min-width: 0; }
+.user-create input, .user-create select { width: 100%; min-width: 0; }
+.user-create .primary-btn { flex: 0 0 auto; }
+/* centre the banner in the canvas left beside the drawer, not underneath it */
+.highlight-banner { max-width: calc(100% - 32px); }
+.highlight-banner > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.highlight-banner.drawer-open {
+  left: calc((100% - min(380px, 90vw)) / 2);
+  max-width: calc(100% - min(380px, 90vw) - 32px);
+}
+.sidebar-head { gap: 0.6rem; }
+.facts dd { min-width: 0; overflow-wrap: anywhere; }
+.sidebar-title, .access-name, .dropdown-item, .hit-name, .hit-path { overflow-wrap: anywhere; }
+.plo-head, .action-item-head, .outcome-head { flex-wrap: wrap; }
+
+/* ---------- responsive: narrow desktop window / tablet ---------- */
+@media (max-width: 1100px) {
+  .reports { padding: 1.1rem 1.1rem; }
+  .rp-tab-hint { font-size: 0.74rem; }
+}
+@media (max-width: 900px) {
+  /* beside a 380px drawer there is no room left for both the zoom toolbar and
+     the Create button: drop Create until the drawer closes */
+  .create-fab-wrap.drawer-open { display: none; }
+  .topbar { gap: 0.6rem 1rem; }
+  .rp-two-col { grid-template-columns: minmax(0, 1fr); }
+  .legend-list { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 400px) {
+  .graph-toolbar button { padding: 0.3rem 0.5rem; min-width: 30px; }
+  .create-fab { padding: 0.7rem; }
+  .create-fab-label { display: none; }
+  .legend-list { grid-template-columns: 1fr; }
+  .rp-dist { grid-template-columns: minmax(0, 1fr); }
+  .rp-dist > div { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .rp-dist dd { margin: 0; }
+  .facts { grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 0.3rem 0.8rem; }
+}
+
+/* ---------- responsive: tablet and phone ---------- */
+/* keep in sync with DRAWER_FULL_BP in Graph.jsx */
+@media (max-width: 640px) {
+  /* a 380px drawer would leave a useless sliver of graph: take the whole canvas */
+  .drawer { width: 100%; border-left: none; }
+  .create-fab-wrap.drawer-open { display: none; }
+  .create-menu { width: min(265px, calc(100vw - 32px)); }
+  .canvas-details-btn { top: 12px; right: 12px; }
+  .graph-toolbar { left: 12px; bottom: 12px; }
+  .create-fab-wrap { right: 12px; bottom: 12px; }
+  /* sits under the Details button instead of colliding with it */
+  .highlight-banner { top: 60px; max-width: calc(100% - 24px); white-space: nowrap; }
+
+  .reports, .access, .users { padding: 1rem; }
+  .cm-scroll { max-height: 65vh; }
+  .cm-outcome-col { min-width: 150px; max-width: 170px; padding: 0.4rem 0.55rem; }
+  .cm-outcome-code { flex-wrap: wrap; gap: 0.2rem 0.4rem; font-size: 0.8rem; }
+  .cm-course-col { min-width: 34px; }
+  .ms-course { padding: 0.85rem 0.9rem; }
+  .ms-activities { grid-template-columns: minmax(0, 1fr); }
+
+  .access-badge { min-width: 0; }
+  .access-toggle { margin-left: 0; }
+
+  .user-create { flex-direction: column; align-items: stretch; padding: 0.8rem; }
+  .user-create label { flex: 0 0 auto; }
+  .user-create input, .user-create select { width: 100%; }
+  .invite-link-result { flex-wrap: wrap; }
+  .invite-link-result input { flex: 1 1 100%; }
+  .invite-link-result button { flex: 1 1 auto; }
+  .grant-adder select:first-of-type { flex: 1 1 100%; max-width: none; }
+  .grant-adder select { flex: 1 1 0; }
+  .grant-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .add-form-actions { flex-wrap: wrap; }
+}
+
+/* touch: 16px controls stop iOS zooming the page on focus; larger hit areas */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+  .icon-btn { min-width: 36px; min-height: 36px; }
+  .graph-toolbar button { min-width: 40px; min-height: 38px; }
+  .canvas-details-btn { min-height: 40px; }
+  .dropdown-item { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+  .theme-switch button { padding: 0.4rem 0.65rem; }
+  .search-results li button { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+  .ghost-btn, .primary-btn, .access-toggle, .hier-toggle { min-height: 36px; }
+  .ghost-btn.small { min-height: 32px; }
+}
