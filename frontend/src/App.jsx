@@ -207,7 +207,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    try { localStorage.setItem('cms_theme', theme) } catch {}
+    try { localStorage.setItem('cms_theme', theme) } catch { /* storage blocked (private mode); theme just won't persist */ }
   }, [theme])
 
   async function loginAs(role) {

@@ -453,7 +453,7 @@ function ProgramOutcomesSection({ programOutcomes, canEdit, onChanged }) {
   )
 }
 
-export default function Sidebar({ nodeId, onClose, onNavigate, canEdit, onTreeChanged, onHighlightOutcome, highlightedOutcomeId, headingRef, createSignal }) {
+export default function Sidebar({ nodeId, onClose, onNavigate, onTreeChanged, onHighlightOutcome, highlightedOutcomeId, headingRef, createSignal }) {
   const [detail, setDetail] = useState(null)
   const [error, setError] = useState(null)
   const [check, setCheck] = useState(null)

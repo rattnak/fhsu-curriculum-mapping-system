@@ -93,7 +93,7 @@ function InviteCreator({ isAdmin, org, onCreated }) {
       await navigator.clipboard.writeText(link)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {}
+    } catch { /* clipboard unavailable (insecure context); the link stays visible to copy by hand */ }
   }
 
   return (
@@ -144,14 +144,18 @@ function InviteCreator({ isAdmin, org, onCreated }) {
 }
 
 function PendingInvites({ invites, isAdmin, onChanged }) {
+  const [revokeError, setRevokeError] = useState('')
   async function revoke(id) {
-    try { await api.revokeInvite(id); onChanged() } catch {}
+    setRevokeError('')
+    try { await api.revokeInvite(id); onChanged() } catch (e) { setRevokeError(e.message) }
   }
 
   const pending = invites.filter((i) => !i.used_at)
   if (pending.length === 0) return <p className="muted small">No pending invites.</p>
 
   return (
+    <>
+    {revokeError && <p className="error" role="alert">{revokeError}</p>}
     <ul className="user-list">
       {pending.map((inv) => (
         <li key={inv.invite_id} className="user-card">
@@ -166,6 +170,7 @@ function PendingInvites({ invites, isAdmin, onChanged }) {
         </li>
       ))}
     </ul>
+    </>
   )
 }
 
