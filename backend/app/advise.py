@@ -162,7 +162,7 @@ def advise_course(session: Session, course_node: Node) -> dict:
     )
     peak = 0
     drops = set()
-    for idx, rank, mp in seq:
+    for idx, rank, _mp in seq:
         if rank < peak - 1:  # allow one-step variation; flag hard drops
             drops.add(modules[idx].node_name)
         peak = max(peak, rank)

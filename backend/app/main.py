@@ -337,7 +337,7 @@ def node_detail(
 
     if n.node_type.value in ("department", "program", "college", "college_dept_grouping", "institution"):
         def count_desc(target_type):
-            ids, total = {node_id}, 0
+            ids = {node_id}
             changed = True
             while changed:
                 changed = False
