@@ -1,0 +1,22 @@
+# Local full-stack run: docker compose up --build  ->  UI on :8080, API on :8000
+services:
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: sqlite:////data/curriculum.db
+      CMS_ENV: development
+      CMS_CORS_ORIGINS: http://localhost:8080
+    volumes:
+      - cms-data:/data
+    ports: ["8000:8000"]
+    command: sh -c "python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_DEMO_MODE: "true"
+    ports: ["8080:80"]
+    depends_on: [api]
+volumes:
+  cms-data:
