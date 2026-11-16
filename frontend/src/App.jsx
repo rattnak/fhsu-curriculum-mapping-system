@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, getToken, setToken } from './api'
+import { api, getToken, onSessionExpired, setToken, SESSION_EXPIRED_MESSAGE } from './api'
 import Login from './components/Login.jsx'
 import Graph from './components/Graph.jsx'
 import Sidebar from './components/Sidebar.jsx'
@@ -279,6 +279,15 @@ export default function App() {
     return () => { stale = true }
   }, [highlightedOutcomeId])
 
+  const [sessionNotice, setSessionNotice] = useState(null)
+
+  // Any request that comes back 401 ends the session and returns to sign-in.
+  useEffect(() => onSessionExpired(() => {
+    if (DEMO_MODE) { loginAs('admin').catch((e) => setError(e.message)); return }
+    logout()
+    setSessionNotice(SESSION_EXPIRED_MESSAGE)
+  }), [])  // eslint-disable-line react-hooks/exhaustive-deps
+
   function logout() {
     setToken(null)
     setUser(null)
@@ -325,7 +334,7 @@ export default function App() {
   if (!user) {
     return DEMO_MODE
       ? <div className="login-wrap"><p className="muted" role="status">Starting demo session…</p></div>
-      : <Login onLogin={setUser} />
+      : <Login onLogin={(u) => { setSessionNotice(null); setUser(u) }} notice={sessionNotice} />
   }
 
   return (

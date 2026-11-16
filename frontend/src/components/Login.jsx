@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, setToken } from '../api'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, notice }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -27,6 +27,7 @@ export default function Login({ onLogin }) {
       <form className="login-card" onSubmit={submit}>
         <h1>FHSU Curriculum Mapping</h1>
         {import.meta.env.VITE_DEMO_MODE === 'true' && <p className="muted">Test users: admin_test / editor_test / viewer_test</p>}
+        {notice && <p className="notice" role="status">{notice}</p>}
         <label>
           Username
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required autoFocus />

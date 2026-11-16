@@ -40,3 +40,39 @@ describe('api client', () => {
     expect(fetchFn.mock.calls[0][0]).toMatch(/\/reports\/coverage\?scope=7$/)
   })
 })
+
+describe('error handling', () => {
+  it('ends the session on 401 and notifies the app', async () => {
+    const { onSessionExpired } = await import('./api')
+    const handler = vi.fn()
+    const off = onSessionExpired(handler)
+    setToken('stale')
+    mockFetch(401, { detail: 'Invalid or expired token' })
+    await expect(api.curriculum()).rejects.toThrow('Your session expired. Sign in again.')
+    expect(getToken()).toBeNull()
+    expect(handler).toHaveBeenCalledOnce()
+    off()
+  })
+
+  it('treats a 401 from /login as wrong credentials, not an expiry', async () => {
+    setToken('tok')
+    mockFetch(401, { detail: 'Invalid credentials' })
+    await expect(api.login('a', 'b')).rejects.toThrow('Invalid credentials')
+    expect(getToken()).toBe('tok')
+  })
+
+  it('maps 5xx on writes to a plain message without retrying', async () => {
+    const fetchFn = mockFetch(500, { detail: 'psycopg trace...' })
+    await expect(api.createCourse({})).rejects.toThrow("Can't reach the server")
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a read once on network failure', async () => {
+    const fetchFn = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: 1 }) })
+    vi.stubGlobal('fetch', fetchFn)
+    await expect(api.curriculum()).resolves.toEqual({ ok: 1 })
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+  })
+})
