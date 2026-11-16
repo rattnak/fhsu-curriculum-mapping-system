@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api, setToken } from '../api'
 
 export default function Login({ onLogin }) {
-  const [username, setUsername] = useState('viewer_test')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)

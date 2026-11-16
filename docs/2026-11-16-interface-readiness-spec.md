@@ -135,7 +135,7 @@ Print output is unchanged in content: tabs, filters and toggles are hidden, the 
 
 | # | Requirement | Where |
 |---|---|---|
-| G1 | The sign-in form starts empty. It is currently prefilled with `viewer_test`. | `Login.jsx` |
+| G1 | **Done 2026-11-16.** The sign-in form starts empty. | `Login.jsx` |
 | G2 | `VITE_DEMO_MODE=true` puts admin test credentials in the bundle and signs in automatically. The production build must fail loudly if `VITE_DEMO_MODE` is true or `VITE_API_URL` is unset, instead of silently falling back to `http://localhost:8000`. | `api.js`, `vite.config.js` |
 | G3 | Sign out is available in production builds. It is currently only hidden in demo mode; confirm it appears and returns to the sign-in screen with all state cleared. | `UserMenu.jsx`, `App.jsx` |
 | G4 | Accepting an invite lands the user in the app with their scope loaded, with no flash of the sign-in screen. | `AcceptInvite.jsx`, `App.jsx` |
