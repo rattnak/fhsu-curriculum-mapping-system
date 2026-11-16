@@ -1,5 +1,8 @@
 # FHSU Curriculum Mapping System (MVP)
 
+[![CI](https://github.com/rattnak/fhsu-curriculum-mapping-system/actions/workflows/ci.yml/badge.svg)](https://github.com/rattnak/fhsu-curriculum-mapping-system/actions/workflows/ci.yml) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+
+
 Lightweight, self-hosted Coursetune alternative for Fort Hays State University:
 a pan/zoom node-graph of the curriculum hierarchy (institution → college →
 department → program → course → module) that expands level by level on click, with
@@ -28,6 +31,18 @@ npm run dev
 ```
 
 Swagger docs: http://localhost:8000/docs
+
+## Development commands
+
+```bash
+make setup     # backend venv + frontend deps
+make lint      # ruff + eslint
+make test      # pytest (auth, permissions, reports) + vitest
+docker compose up --build   # full stack: UI :8080, API :8000
+```
+
+CI runs the same checks on every push and PR. See [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[roadmap](docs/2026-11-16-interface-readiness-spec.md).
 
 ## Deploying for real users (Supabase Postgres)
 
