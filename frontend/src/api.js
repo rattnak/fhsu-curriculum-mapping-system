@@ -12,12 +12,58 @@ export function getToken() {
   return token
 }
 
+const TIMEOUT_MS = 15000
+const RETRY_DELAY_MS = 500
+const RETRYABLE_STATUS = new Set([502, 503, 504])
+export const SESSION_EXPIRED_MESSAGE = 'Your session expired. Sign in again.'
+const UNREACHABLE_MESSAGE = "Can't reach the server. Check your connection and try again."
+
+let sessionExpiredHandler = null
+export function onSessionExpired(fn) {
+  sessionExpiredHandler = fn
+  return () => { if (sessionExpiredHandler === fn) sessionExpiredHandler = null }
+}
+
+async function attempt(path, options, headers) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  try {
+    return await fetch(`${BASE}${path}`, { ...options, headers, signal: controller.signal })
+  } catch (e) {
+    const err = new Error(e.name === 'AbortError'
+      ? 'The server took too long to respond. Try again.'
+      : UNREACHABLE_MESSAGE)
+    err.retryable = true
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
+  const isRead = !options.method || options.method === 'GET'
+
+  let res
+  try {
+    res = await attempt(path, options, headers)
+    if (isRead && RETRYABLE_STATUS.has(res.status)) throw Object.assign(new Error(UNREACHABLE_MESSAGE), { retryable: true })
+  } catch (e) {
+    if (!isRead || !e.retryable) throw e
+    // reads are idempotent: retry once; writes never retry automatically
+    await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
+    res = await attempt(path, options, headers)
+  }
+
+  if (res.status === 401 && token && path !== '/login') {
+    setToken(null)
+    if (sessionExpiredHandler) sessionExpiredHandler()
+    throw new Error(SESSION_EXPIRED_MESSAGE)
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
+    if (res.status >= 500) throw new Error(UNREACHABLE_MESSAGE)
     throw new Error(body.detail || `Request failed (${res.status})`)
   }
   return res.json()
