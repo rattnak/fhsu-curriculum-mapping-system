@@ -1007,3 +1007,5 @@ th { background: var(--bg-raised); position: sticky; top: 0; }
   .ghost-btn, .primary-btn, .access-toggle, .hier-toggle { min-height: 36px; }
   .ghost-btn.small { min-height: 32px; }
 }
+
+.login-card .notice { margin: 0; padding: 0.55rem 0.7rem; border-radius: 8px; font-size: 0.85rem; background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
